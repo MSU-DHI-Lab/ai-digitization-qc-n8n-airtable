@@ -1,0 +1,3 @@
+Object ID,File name,File path or URL,Scan date,Operator,Status,Quality,Quality score,Defects (text summary),Finger in frame,Skew (degrees),Blur level,Glare present,Cutoff edges,Notes
+Box3_Folder12_Item05,Box3_Folder12_Item05.tif,https://example.org/scans/Box3_Folder12_Item05.tif,2025-01-01T12:03:00Z,A. Operator,QC Passed,High,92,"Large image with sufficient resolution (placeholder heuristic).",FALSE,1.5,None,FALSE,FALSE,""
+Box3_Folder12_Item06,Box3_Folder12_Item06.tif,https://example.org/scans/Box3_Folder12_Item06.tif,2025-01-01T12:05:00Z,A. Operator,QC Failed – Needs Review,Low,55,"Image appears small or cropped (placeholder heuristic).",FALSE,6.0,Mild,FALSE,TRUE,"Check for cropping on right edge."

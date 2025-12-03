@@ -1,0 +1,15 @@
+{
+  "quality": "high",
+  "score": 92,
+  "defects": {
+    "finger_in_frame": false,
+    "skew_degrees": 1.5,
+    "blur": "none",
+    "glare": false,
+    "cutoff_edges": false
+  },
+  "reasons": [
+    "Large image with sufficient resolution (placeholder heuristic)."
+  ],
+  "processed_at": "2025-01-01T12:00:00"
+}
