@@ -26,6 +26,8 @@ Use a single table named “Digitized Objects” with the following fields:
 | Blur level            | Single select     | None, Mild, Strong                                         |
 | Glare present         | Checkbox          | True if detected                                           |
 | Cutoff edges          | Checkbox          | True if any margin is cut off                              |
+| AI Analysis Report    | Rich text         | Formatted Markdown summary from AI                         |
+| Tags                  | Multiple select   | AI-suggested content tags (e.g., High Res, Sepia)          |
 | Notes                 | Long text         | Human notes / comments                                     |
 
 ### Recommended views

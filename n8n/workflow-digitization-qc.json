@@ -49,7 +49,9 @@
             "Skew (degrees)": "={{ $json.defects.skew_degrees }}",
             "Blur level": "={{ $json.defects.blur }}",
             "Glare present": "={{ $json.defects.glare }}",
-            "Cutoff edges": "={{ $json.defects.cutoff_edges }}"
+            "Cutoff edges": "={{ $json.defects.cutoff_edges }}",
+            "AI Analysis Report": "={{ $json.rich_text_report }}",
+            "Tags": "={{ $json.semantic_tags }}"
           }
         }
       },

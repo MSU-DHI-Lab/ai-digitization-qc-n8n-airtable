@@ -4,256 +4,183 @@ _Automating image quality control, metadata capture, and review for museums, lib
 
 ## 1. What this project is
 
-This repository demonstrates a **realistic, AI-powered digitization workflow** for museums, libraries, and archives.
+This repository demonstrates a realistic, AI-powered digitization workflow for museums, libraries, and archives.
 
 It combines:
 
-- **AI computer vision** to automatically judge whether a scan is **high quality** or **low quality** (e.g., finger in frame, skew, blur, cutoff).
-- **Airtable** as the **human-facing, flexible workspace** for metadata, review queues, and progress tracking.
-- **n8n** as the **orchestrator** that connects file storage, the AI model, and Airtable into a coherent workflow.
+- AI computer vision to automatically judge whether a scan is high quality or low quality (for example, finger in frame, skew, blur, cutoff).
+- Airtable as the human-facing, flexible workspace for metadata, review queues, and progress tracking.
+- n8n as the orchestrator that connects file storage, the AI model, and Airtable into a coherent workflow.
 
-The goal is to show how AI and Airtable can work together in a **practical collections context**, not just as isolated tools.
+The goal is to show how AI and Airtable can work together in a practical collections context, not just as isolated tools.
 
----
-
-## 2. Who this is for
-
-This project is written for:
-
-- Museum, library, and archives professionals.
-- Collections managers, registrars, and digitization coordinators.
-- People who want to **experiment with AI** in digitization, but need a workflow that still feels grounded in collections practice.
-- Teams that already use or are considering **Airtable** as a lightweight collections or project management tool.
-
-You do **not** need to be a software engineer to understand the workflow. Technical details (Python, Docker, n8n nodes) can be handled by a collaborator, IT staff, or your future self.
-
----
-
-## 3. Architecture overview
+### Architecture (high level)
 
 At a high level, the workflow looks like this:
 
-1. **Scans arrive** in a shared folder (for example, OneDrive or a local network path).
-2. **n8n** detects new files and sends each image to an **AI model API**.
-3. The **AI model** returns a structured JSON verdict (quality, score, defects).
-4. **n8n** writes the result and core metadata into an **Airtable base**, updating status fields and defect flags.
-5. **Airtable** becomes the central place where staff:
-   - See which scans passed or failed AI quality control.
-   - Work from a “Needs Review” view for problem scans.
-   - Track where each object is in the digitization pipeline.
+1. A new scan is saved into a watched folder.
+2. n8n detects the new file and sends the image to the AI model service.
+3. The AI model returns a structured JSON verdict (quality, score, defects, reasons).
+4. n8n writes the result into Airtable, updates status fields, and (optionally) moves the file.
+5. Collections staff work entirely from Airtable views and Interfaces for review, correction, and reporting.
 
-### Components
+Airtable is the main place where humans work. AI and n8n run in the background to reduce manual screening and keep quality consistent at scale.
 
-- **File storage**
-  - Where scanned images live (e.g., OneDrive, Google Drive, local NAS).
-  - n8n is configured to watch or poll this location.
+## 2. Project context (the “why”)
 
-- **AI model service (`model-service/`)**
-  - A small **FastAPI** app that exposes a `/predict` endpoint.
-  - In this demo, the logic is placeholder; in real use you plug in a trained model
-    (e.g., Teachable Machine export, ONNX model, or Vertex AI / Hugging Face endpoint).
+The Challenge: our lab faced a backlog of thousands of physical objects requiring digitization. Our existing process was manual, prone to human error, and difficult to scale. We needed a workflow that ensured consistent quality standards and reproducibility without slowing down our human operators.
 
-- **n8n workflow (`n8n/workflow-digitization-qc.json`)**
-  - Nodes for:
-    - Detecting new scans.
-    - Calling the AI model.
-    - Branching on high vs low quality.
-    - Updating Airtable records.
-    - Optionally moving files and sending notifications.
+The Solution: we built this “force multiplier” workflow. By offloading the rote visual inspection to AI, we increased throughput and ensured that every single scan met our baseline quality metrics before a human ever had to review it.
 
-- **Airtable base (`airtable/base-schema.md`)**
-  - Table design for:
-    - Logging every digitized object.
-    - Storing AI quality scores and defect flags.
-    - Representing workflow status (QC Pending, QC Passed, Needs Review, etc.).
-    - Providing review queues via filtered views.
+### Why Airtable?
 
----
+We chose Airtable as the core platform because it sits at the intersection of a relational database and a project management tool.
 
-## 4. How AI is used in this project
+- Relational structure: unlike a spreadsheet, we can properly model relationships (Objects ↔ Scans ↔ Defects).
+- Low-code Interfaces: we can build custom, drag-and-drop Interfaces for student workers and staff so they do not have to interact with raw data tables or learn SQL.
+- API-first: Airtable’s API allows seamless integration with our AI model service and n8n orchestrator.
 
-This project is intentionally structured as an **AI experiment you can grow over time**:
+In practice, Airtable gave us much of the structure of a dedicated DAM system while preserving the flexibility to iterate on our metadata schema as the project evolved.
 
-- The **model-service** layer is where you plug in different computer vision approaches:
-  - A simple image classifier trained in **Teachable Machine**, exported to TensorFlow or ONNX.
-  - A more advanced model trained with PyTorch and exported to ONNX for cheap CPU inference.
-  - A managed model hosted on **Vertex AI**, **Hugging Face**, or **DigitalOcean Gradient**, with the FastAPI service acting as a thin proxy.
+### Project origin
 
-- The AI model returns **structured JSON** describing:
-  - `quality` (high / low)
-  - `score` (0–100)
-  - `defects` (finger in frame, skew, blur, glare, cutoff)
-  - `reasons` (short textual explanation)
+This workflow was developed in the Digital Heritage Innovation Lab at Michigan State University as part of a collections scalability initiative. Our team used Airtable as the operational hub for digitization quality control, integrating it with a lab-hosted AI service and an n8n instance already in use for other research and teaching workflows. The repository reflects that lab implementation in a cleaned-up, shareable form.
 
-- n8n uses this JSON to:
-  - Automatically decide whether a scan passes or fails AI QC.
-  - Populate Airtable fields that collections staff can use directly (“Finger in frame”, “Blur level”, etc.).
-  - Drive a **human-in-the-loop review** process for borderline or failed scans.
+## 3. Architecture overviews
 
-See `docs/ai-experiments-notes.md` for ideas on how to swap models, convert to ONNX, or move from a local container to a cloud-hosted endpoint.
+### AI quality control
 
----
+The system automatically checks every scan for common issues such as:
 
-## 5. How Airtable is used in this project
+- Fingers in frame
+- Skew or rotation
+- Blur
+- Cutoff edges
 
-Airtable is the **central, human-readable system of record** in this workflow.
+The AI service does not make final curatorial decisions. Instead, it flags potential problems and assigns a score that helps staff prioritize which scans need attention.
 
-The base has a main table, for example **Digitized Objects**, with fields such as:
+### AI-generated reports (Airtable Rich Text)
 
-- `Object ID`
-- `File name`
-- `File path or URL`
-- `Scan date`
-- `Operator`
-- `Status` (New Scan, QC Pending, QC Passed, QC Failed – Needs Review, Metadata Complete, Digitization Complete)
-- `Quality` (High / Low — from AI)
-- `Quality score`
-- `Defects (text summary)`
-- `Finger in frame` (checkbox)
-- `Skew (degrees)`
-- `Blur level` (None / Mild / Strong)
-- `Glare present` (checkbox)
-- `Cutoff edges` (checkbox)
-- `Notes`
+Instead of a simple pass or fail checkbox, the AI generates a short, structured explanation for every image. This maps directly to an Airtable Rich Text field, giving curators and digitization staff a clear, readable summary of why an image passed or failed the automated checks.
 
-Airtable plays three roles:
+### Semantic auto-tagging
 
-1. **Master digitization log**  
-   Every AI-checked scan becomes a row with quality and metadata.
+The AI can suggest content tags such as “High Res”, “Sepia”, or “Handwritten” to jumpstart metadata work. These map to Airtable multi-select fields, making it easy to refine or override the suggestions over time.
 
-2. **Review and correction queue**  
-   Views like **Needs Review** filter to records where AI flagged problems (for example, `Status = "QC Failed – Needs Review"`).
+### “Interface-first” design
 
-3. **Workflow state machine**  
-   The `Status` field shows where each object is in the pipeline; n8n updates this automatically as steps complete.
+The data schema is designed to power Airtable Interfaces. The lab uses Interfaces as a “digitization command center” where staff can:
 
-The Airtable schema is described in detail in `airtable/base-schema.md`.
+- See new scans entering the system.
+- Filter to items that AI has flagged for review.
+- Track progress across boxes, collections, or operators.
 
----
+The repository includes written guidance for building an interface of this type, so teams can adapt it to their own collections and digitization goals.
 
-## 6. Files in this repository
+## 4. Files in this repository
 
-- `README.md`  
-  You are here.
+- README.md: you are here.
+- n8n/workflow-digitization-qc.json: the orchestration logic to import into n8n.
+- model-service/:
+  - app.py: FastAPI application that exposes the AI quality control API.
+  - Dockerfile: container definition for running the model service.
+  - requirements.txt: Python dependencies for the model service.
+- airtable/:
+  - base-schema.md: how to set up your Airtable base and fields.
+  - interface-design.md: guide to building a review and monitoring interface in Airtable.
+- data/:
+  - sample_qc_output.json: example of the structured JSON response from the AI service.
+  - sample_airtable_export.csv: example Airtable export after several scans have been processed.
+  - sample_input/: notes on what example input scans look like.
+- docs/:
+  - ai-experiments-notes.md: notes on model variants, ONNX, and possible cloud-hosted deployments.
 
-- `n8n/workflow-digitization-qc.json`  
-  Example n8n workflow export. This is a template you can import and customize in your own n8n instance.
+## 5. Step-by-step setup (museum and library friendly)
 
-- `model-service/app.py`  
-  A small FastAPI application that exposes a `/predict` endpoint for quality checking. In this demo, it uses placeholder logic; in practice you would attach a real computer vision model.
-
-- `model-service/requirements.txt`  
-  Python dependencies for the model service.
-
-- `model-service/Dockerfile`  
-  Container definition for running the model service (locally, on a NAS, or on a small cloud instance).
-
-- `airtable/base-schema.md`  
-  Step-by-step description of the Airtable base: fields, types, and recommended views.
-
-- `data/sample_qc_output.json`  
-  Example of the AI model’s JSON output.
-
-- `data/sample_airtable_export.csv`  
-  Example export from the Airtable table after a few records have been processed.
-
-- `data/sample_input/README.md`  
-  Notes about what sample input scans would look like (filenames, formats, etc.).
-
-- `docs/ai-experiments-notes.md`  
-  Notes on potential AI model variants, deployment options (ONNX, Vertex, Hugging Face, DigitalOcean), and how they would slot into this workflow.
-
----
-
-## 7. Step-by-step setup (museum / library friendly)
+This section is written for collections staff, registrars, and project managers who may not consider themselves technical specialists. You do not need to write code to understand the workflow, but you may want a colleague or IT partner to help with the server and container pieces.
 
 ### Step 1 — Set up the Airtable base
 
-1. Sign into Airtable and create a **new base** named, for example, **Digitization QC Log**.
-2. Follow `airtable/base-schema.md` to:
-   - Create the **Digitized Objects** table.
-   - Add the fields listed there.
-   - Create at least:
-     - An **All records** view.
-     - A **Needs Review** view (filter on `Status = "QC Failed – Needs Review"`).
-     - A **QC Passed** view.
+1. Sign into Airtable and create a new base.
+2. Follow airtable/base-schema.md to create the table and fields.
+3. Optionally, read airtable/interface-design.md to see how to build a review interface for your team.
 
-You can do this entirely through Airtable’s web UI, no code required.
+### Step 2 — Start the AI service
 
-### Step 2 — Decide where scans will be stored
+This step is often handled by IT staff or a technically comfortable collaborator.
 
-Pick one location for **new scans** to appear, such as:
+1. From the model-service directory, install dependencies from requirements.txt or build the Docker image.
+2. Run the service so it listens on a known port (for example, port 8000 on an internal server or development machine).
+3. Check the service health endpoint or documentation page in a browser to confirm it is running.
 
-- A folder on OneDrive / Google Drive that n8n can access, or
-- A local or network folder if you are running n8n on-premises.
+The exact commands depend on your environment. They are intentionally simple so that a small team can host the AI service alongside other lab tools.
 
-Staff should save new scans there. You do not have to change your existing naming convention to start using the workflow.
+### Step 3 — Configure n8n
 
-### Step 3 — Deploy the model service (AI layer)
+1. Import n8n/workflow-digitization-qc.json into your n8n instance.
+2. Update the trigger node so it watches the folder where new scans are saved.
+3. Point the AI node to your model service endpoint.
+4. Configure the Airtable node with your Airtable API key, base, and table, and map fields to match your base-schema.md configuration.
 
-If you are just demoing the workflow, you can use the placeholder service as-is.
+### Step 4 — Digitize and review
 
-Basic, non-technical summary:
+Once everything is connected:
 
-1. Ask someone comfortable with Python or Docker to:
-   - Install Python 3.11 (or similar).
-   - Install requirements from `model-service/requirements.txt`.
-   - Run `model-service/app.py` so it listens on a port (for example, `http://localhost:8000`).
-2. Confirm you can open `http://<server>:8000/docs` in a web browser and see the FastAPI documentation.
-3. The important part is the `/predict` endpoint URL; you’ll paste that into n8n.
+1. Drop a test scan into the watched folder.
+2. Wait for the workflow to run. The image is sent to the AI service, evaluated, and recorded in Airtable.
+3. Open Airtable and confirm that a new record appears with:
+   - The object or file identifier
+   - Quality score and simple quality label
+   - Defect flags
+   - A short text explanation
+4. Use Airtable views and Interfaces to monitor new scans and identify items that need manual review or rescanning.
 
-Later, this same service can be replaced or extended to call a real model exported from Teachable Machine, ONNX, Vertex AI, or Hugging Face.
+## 6. For developers
 
-### Step 4 — Import and configure the n8n workflow
+For teams that want to extend or harden this workflow, the repository can be used as a starting point.
 
-1. Open your n8n instance.
-2. Create a new workflow and choose **Import from File**.
-3. Select `n8n/workflow-digitization-qc.json` from this repository.
-4. Update the nodes:
-   - **Trigger node**: point it at the folder where new scans appear (e.g., your `IncomingScans` folder).
-   - **Model API node**: set the URL to your AI model service’s `/predict` endpoint.
-   - **Airtable node**:  
-     - Add Airtable credentials.  
-     - Select the base and table you created.  
-     - Map fields from the AI model output and file metadata to the Airtable columns (Object ID, Quality, Defects, Status, etc.).
+- The model service is built with FastAPI and organized so that a real computer vision model (for example, a Teachable Machine export, ONNX model, or cloud-hosted model) can be swapped in.
+- The container definition is suitable for running the model service on a small VM, NAS, or on-premises server.
+- The data examples demonstrate how the AI output is shaped so it can be written directly into Airtable via n8n.
 
-5. Save and activate the workflow.
+This makes it straightforward to experiment with different models or hosting environments while keeping Airtable and n8n configuration stable.
 
-### Step 5 — Test with a few scans
+## 7. What is implemented today
 
-1. Drop a small number of test scans into your input folder.
-2. Watch the n8n workflow run:
-   - Confirm requests are hitting the model service.
-   - Confirm records are appearing in Airtable with the expected values.
-3. Open the **Needs Review** view in Airtable to see which scans AI flagged as low quality.
+The current version of this project includes:
 
-Once this works, you can iterate on:
+- An n8n workflow template that:
+  - Watches a scan folder.
+  - Sends images to the AI service.
+  - Receives quality results.
+  - Writes records into Airtable.
+- A model service implementation that:
+  - Exposes a simple HTTP API for image quality checks.
+  - Returns structured JSON suitable for direct Airtable mapping.
+- An Airtable base schema that:
+  - Stores object identifiers, quality scores, defect flags, and workflow status.
+  - Supports filtered views such as “Needs Review” and “QC Passed”.
+- Example data artifacts:
+  - Sample AI output.
+  - Sample Airtable export from test runs.
+  - A description of sample input scans.
 
-- The AI model (better quality detection).
-- The Airtable schema (more metadata fields).
-- The n8n workflow (notifications, integration with project management tools).
+These components were used together in the Digital Heritage Innovation Lab to support a real digitization backlog and are now published in this repository in a form that other teams can adapt.
 
----
+## 8. Future directions
 
-## 8. How to position this project in an AI + Airtable application
+While this project represents a working version of the workflow, there are clear opportunities to extend it using additional AI and Airtable features. The ideas below are future enhancements and may not all be implemented in the current repository.
 
-This project gives you a concrete, inspectable artifact that shows:
+1. Generative metadata description  
+   Idea: connect a large language model to the n8n workflow.  
+   Value: have the AI write a short, human-friendly description of each object (for example, “A sepia-toned photograph of a family standing in front of a 1920s farmhouse”) and store it in a long text field in Airtable.
 
-- **AI experimentation** in a real workflow:
-  - AI-powered image quality assessment for scans.
-  - Structured JSON outputs used directly in a workflow engine (n8n).
-  - Clear separation between model experiments and orchestration.
+2. Automated OCR pipeline  
+   Idea: add a Tesseract or cloud vision node to the n8n workflow.  
+   Value: automatically extract text from documents and store it in Airtable for full-text search and downstream analysis.
 
-- **Airtable integration**:
-  - Airtable as the central record for digitization status, AI results, and human review.
-  - Practical examples of using Airtable as a workflow state machine and review hub.
-  - A schema designed specifically for collections and digitization contexts.
+3. Public search and discovery  
+   Idea: use Airtable Interfaces to create a read-only, public-facing view of the records that have passed quality control.  
+   Value: publish a browsable slice of the digitized collection to researchers and community partners without building a separate website.
 
-- **Glue code and orchestration**:
-  - n8n workflow JSON demonstrating how to connect file storage, AI services, and Airtable.
-  - A small, inspectable FastAPI service that can be swapped to different AI backends.
-
-You can point reviewers directly to:
-
-- `model-service/app.py` and `docs/ai-experiments-notes.md` for the AI side.
-- `airtable/base-schema.md` and `n8n/workflow-digitization-qc.json` for the Airtable-integrated workflow.
+These directions are intentionally aligned with Airtable’s strengths: relational modeling, Interfaces, and API-friendly integration with AI services.
