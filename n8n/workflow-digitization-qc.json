@@ -1,7 +1,89 @@
 {
-  "name": "Collections Digitization QC Workflow (Template)",
-  "nodes": [],
-  "connections": {},
-  "settings": {},
-  "versionId": "placeholder-version-id"
+  "name": "Collections Digitization QC Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "/data/incoming",
+        "events": [
+          "add"
+        ],
+        "options": {}
+      },
+      "name": "Local File Trigger",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/predict",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "name": "AI Model Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "baseId": "appYOURBASEID",
+        "table": "Digitized Objects",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "File name": "={{ $binary.data.fileName }}",
+            "Quality": "={{ $json.quality }}",
+            "Quality score": "={{ $json.score }}",
+            "Defects (text summary)": "={{ $json.reasons.join(', ') }}",
+            "Finger in frame": "={{ $json.defects.finger_in_frame }}",
+            "Skew (degrees)": "={{ $json.defects.skew_degrees }}",
+            "Blur level": "={{ $json.defects.blur }}",
+            "Glare present": "={{ $json.defects.glare }}",
+            "Cutoff edges": "={{ $json.defects.cutoff_edges }}"
+          }
+        }
+      },
+      "name": "Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Local File Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Model Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model Service": {
+      "main": [
+        [
+          {
+            "node": "Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
 }

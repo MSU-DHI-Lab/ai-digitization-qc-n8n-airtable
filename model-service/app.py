@@ -1,8 +1,9 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import List, Optional
 from PIL import Image
 import io
-import numpy as np
 import uvicorn
 import time
 
@@ -12,50 +13,67 @@ app = FastAPI(
     version="0.1.0",
 )
 
-def dummy_quality_score(img: Image.Image) -> dict:
+# --- Pydantic Models for Data Contract ---
+
+class Defects(BaseModel):
+    finger_in_frame: bool
+    skew_degrees: float
+    blur: str  # "none", "mild", "strong"
+    glare: bool
+    cutoff_edges: bool
+
+class QualityResponse(BaseModel):
+    quality: str  # "high", "low"
+    score: int    # 0-100
+    defects: Defects
+    reasons: List[str]
+    processed_at: str
+
+# --- Core Logic ---
+
+def dummy_quality_score(img: Image.Image) -> QualityResponse:
     """
     Placeholder logic.
-
-    In a real deployment, replace this with a trained model:
-    - Teachable Machine export
-    - ONNX model served with onnxruntime
-    - A call out to Vertex AI / Hugging Face / Gradient, etc.
+    In a real deployment, replace this with a trained model.
     """
     width, height = img.size
     pixels = width * height
 
-    if pixels >= 2000 * 3000:
-        score = 92
-        quality = "high"
-        defects = {
-            "finger_in_frame": False,
-            "skew_degrees": 1.5,
-            "blur": "none",
-            "glare": False,
-            "cutoff_edges": False,
-        }
-        reasons = ["Large image with sufficient resolution (placeholder heuristic)."]
+    # Default to "high quality" values
+    is_high_quality = (pixels >= 2000 * 3000)
+    
+    if is_high_quality:
+        return QualityResponse(
+            quality="high",
+            score=92,
+            defects=Defects(
+                finger_in_frame=False,
+                skew_degrees=1.5,
+                blur="none",
+                glare=False,
+                cutoff_edges=False,
+            ),
+            reasons=["Large image with sufficient resolution (placeholder heuristic)."],
+            processed_at=time.strftime("%Y-%m-%dT%H:%M:%S")
+        )
     else:
-        score = 55
-        quality = "low"
-        defects = {
-            "finger_in_frame": False,
-            "skew_degrees": 6.0,
-            "blur": "mild",
-            "glare": False,
-            "cutoff_edges": True,
-        }
-        reasons = ["Image appears small or cropped (placeholder heuristic)."]
+        return QualityResponse(
+            quality="low",
+            score=55,
+            defects=Defects(
+                finger_in_frame=False,
+                skew_degrees=6.0,
+                blur="mild",
+                glare=False,
+                cutoff_edges=True,
+            ),
+            reasons=["Image appears small or cropped (placeholder heuristic)."],
+            processed_at=time.strftime("%Y-%m-%dT%H:%M:%S")
+        )
 
-    return {
-        "quality": quality,
-        "score": score,
-        "defects": defects,
-        "reasons": reasons,
-        "processed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-    }
+# --- API Endpoints ---
 
-@app.post("/predict")
+@app.post("/predict", response_model=QualityResponse)
 async def predict(file: UploadFile = File(...)):
     contents = await file.read()
     try:
