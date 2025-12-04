@@ -55,4 +55,4 @@ def test_invalid_file_type():
     files = {'file': ('test.txt', b'not an image', 'text/plain')}
     response = client.post("/predict", files=files)
     assert response.status_code == 400
-    assert "File must be an image" in response.json()["detail"]
+    assert "File must be one of" in response.json()["detail"]
