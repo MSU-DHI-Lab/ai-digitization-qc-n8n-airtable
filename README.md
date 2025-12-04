@@ -24,6 +24,8 @@ At a high level, the workflow looks like this:
 4. n8n writes the result into Airtable, updates status fields, and (optionally) moves the file.
 5. Collections staff work entirely from Airtable views and Interfaces for review, correction, and reporting.
 
+Files are routed through three folders: `data/incoming/` (drop folder), `data/processed/` (AI passed), and `data/failed/` (AI failed or error).
+
 Airtable is the main place where humans work. AI and n8n run in the background to reduce manual screening and keep quality consistent at scale.
 
 ## 2. Project context (the “why”)
@@ -58,6 +60,8 @@ The system automatically checks every scan for common issues such as:
 - Cutoff edges
 
 The AI service does not make final curatorial decisions. Instead, it flags potential problems and assigns a score that helps staff prioritize which scans need attention.
+
+> Note: the default model logic in this repo is a simple resolution-based placeholder to keep the workflow runnable. Replace it with your trained model before relying on results.
 
 ### AI-generated reports (Airtable Rich Text)
 
@@ -104,6 +108,7 @@ The easiest way to run the entire system is with Docker Compose. This will start
     ```bash
     cp .env.example .env
     # Edit .env with your Base ID
+    # Optional: set MODEL_API_TOKEN to lock down the model API
     ```
 
 2.  **Start the services:**
@@ -121,7 +126,8 @@ The easiest way to run the entire system is with Docker Compose. This will start
 
 5.  **Test:**
     - Drop an image into `data/incoming/`.
-    - Watch the workflow execute.
+    - Watch the workflow execute. Successful files are moved to `data/processed/`; failures go to `data/failed/`.
+    - The included AI logic is a placeholder resolution check, not a production model. Swap in your own model (see docs/ai-experiments-notes.md) for real QC.
 
 ## 6. Step-by-step setup (Manual)
 
@@ -149,6 +155,9 @@ The exact commands depend on your environment. They are intentionally simple so 
 2. Update the trigger node so it watches the folder where new scans are saved.
 3. Point the AI node to your model service endpoint.
 4. Configure the Airtable node with your Airtable API key, base, and table, and map fields to match your base-schema.md configuration.
+   - If running via Docker Compose, keep the default `http://model-service:8000/predict` URL.
+   - If running the model locally without Compose, change the HTTP node to `http://localhost:8000/predict` (or your host/port).
+5. In n8n, create an Airtable credential (Personal Access Token or legacy API key) and select it in the Airtable node; the `.env` file only supplies Base ID/Table Name.
 
 ### Step 4 — Digitize and review
 
@@ -170,6 +179,7 @@ For teams that want to extend or harden this workflow, the repository can be use
 - The model service is built with FastAPI and organized so that a real computer vision model (for example, a Teachable Machine export, ONNX model, or cloud-hosted model) can be swapped in.
 - The container definition is suitable for running the model service on a small VM, NAS, or on-premises server.
 - The data examples demonstrate how the AI output is shaped so it can be written directly into Airtable via n8n.
+- The model API supports an optional `MODEL_API_TOKEN` shared secret and upload limits (`MAX_UPLOAD_MB`, `MAX_PIXELS`) to keep the service safe in multi-tenant or shared environments.
 
 This makes it straightforward to experiment with different models or hosting environments while keeping Airtable and n8n configuration stable.
 

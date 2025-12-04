@@ -1,5 +1,6 @@
 import logging
-from fastapi import FastAPI, File, UploadFile, HTTPException
+import os
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
@@ -20,6 +21,12 @@ app = FastAPI(
     description="AI-powered quality control for collections scans.",
     version="0.2.0",
 )
+
+# --- Configuration ---
+MODEL_API_TOKEN = os.getenv("MODEL_API_TOKEN")
+MAX_UPLOAD_MB = float(os.getenv("MAX_UPLOAD_MB", 10))
+MAX_PIXELS = int(os.getenv("MAX_PIXELS", 35_000_000))  # ~7K x 5K
+ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
 
 # --- Pydantic Models for Data Contract ---
 
@@ -139,15 +146,30 @@ async def health_check():
     return {"status": "healthy", "service": "model-service"}
 
 @app.post("/predict", response_model=QualityResponse)
-async def predict(file: UploadFile = File(...)):
+async def predict(request: Request, file: UploadFile = File(...)):
     logger.info(f"Received prediction request for file: {file.filename}")
-    
-    if not file.content_type.startswith("image/"):
+
+    # Optional token-based auth (simple shared secret)
+    if MODEL_API_TOKEN:
+        supplied = request.headers.get("x-api-token")
+        if supplied != MODEL_API_TOKEN:
+            logger.warning("Unauthorized request")
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if file.content_type not in ALLOWED_MIME_TYPES:
         logger.warning(f"Invalid content type: {file.content_type}")
-        raise HTTPException(status_code=400, detail="File must be an image")
+        raise HTTPException(status_code=400, detail=f"File must be one of: {', '.join(sorted(ALLOWED_MIME_TYPES))}")
 
     contents = await file.read()
+    size_mb = len(contents) / (1024 * 1024)
+    if size_mb > MAX_UPLOAD_MB:
+        logger.warning(f"Upload too large: {size_mb:.2f} MB")
+        raise HTTPException(status_code=413, detail=f"File exceeds max size of {MAX_UPLOAD_MB} MB")
+
     try:
+        # Verify first to catch truncated or malformed files
+        with Image.open(io.BytesIO(contents)) as verify_img:
+            verify_img.verify()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
     except UnidentifiedImageError:
         logger.error("Could not identify image file")
@@ -158,6 +180,11 @@ async def predict(file: UploadFile = File(...)):
             status_code=500,
             content={"error": f"Internal processing error: {str(exc)}"},
         )
+
+    width, height = img.size
+    if width * height > MAX_PIXELS:
+        logger.warning(f"Image too large: {width}x{height}")
+        raise HTTPException(status_code=413, detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)")
 
     result = dummy_quality_score(img)
     logger.info(f"Prediction complete. Quality: {result.quality}, Score: {result.score}")

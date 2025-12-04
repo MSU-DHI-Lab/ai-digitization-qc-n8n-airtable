@@ -23,13 +23,45 @@
         "url": "http://model-service:8000/predict",
         "sendBinaryData": true,
         "binaryPropertyName": "data",
-        "options": {}
+        "options": {
+          "responseFormat": "json"
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "x-api-token",
+              "value": "={{ $env.MODEL_API_TOKEN }}"
+            }
+          ]
+        }
       },
       "name": "AI Model Service",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
+      "continueOnFail": true,
       "position": [
         450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [
+            {
+              "value1": "={{$json[\"quality\"]}}",
+              "operation": "equal",
+              "value2": "high"
+            }
+          ]
+        }
+      },
+      "name": "Quality Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
         300
       ]
     },
@@ -41,10 +73,13 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
+            "Object ID": "={{ $binary.data.fileName.split('.')[0] }}",
             "File name": "={{ $binary.data.fileName }}",
+            "File path or URL": "={{ $json.filePath || $binary.data.filePath }}",
+            "Status": "QC Passed",
             "Quality": "={{ $json.quality }}",
             "Quality score": "={{ $json.score }}",
-            "Defects (text summary)": "={{ $json.reasons.join(', ') }}",
+            "Defects (text summary)": "={{ Array.isArray($json.reasons) ? $json.reasons.join(', ') : '' }}",
             "Finger in frame": "={{ $json.defects.finger_in_frame }}",
             "Skew (degrees)": "={{ $json.defects.skew_degrees }}",
             "Blur level": "={{ $json.defects.blur }}",
@@ -55,12 +90,69 @@
           }
         }
       },
-      "name": "Airtable",
+      "name": "Airtable (passed)",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 1,
       "position": [
-        650,
-        300
+        850,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "={{ $env.AIRTABLE_TABLE_NAME }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Object ID": "={{ $binary.data.fileName.split('.')[0] }}",
+            "File name": "={{ $binary.data.fileName }}",
+            "File path or URL": "={{ $json.filePath || $binary.data.filePath }}",
+            "Status": "QC Failed – Needs Review",
+            "Quality": "={{ $json.quality || 'low' }}",
+            "Quality score": "={{ $json.score || 0 }}",
+            "Defects (text summary)": "={{ Array.isArray($json.reasons) ? $json.reasons.join(', ') : 'AI call failed' }}",
+            "Finger in frame": "={{ $json.defects && $json.defects.finger_in_frame ? $json.defects.finger_in_frame : false }}",
+            "Skew (degrees)": "={{ $json.defects && $json.defects.skew_degrees ? $json.defects.skew_degrees : 0 }}",
+            "Blur level": "={{ $json.defects && $json.defects.blur ? $json.defects.blur : 'unknown' }}",
+            "Glare present": "={{ $json.defects && $json.defects.glare ? $json.defects.glare : false }}",
+            "Cutoff edges": "={{ $json.defects && $json.defects.cutoff_edges ? $json.defects.cutoff_edges : false }}",
+            "AI Analysis Report": "={{ $json.rich_text_report || 'AI did not return a report. Please review manually.' }}",
+            "Tags": "={{ $json.semantic_tags || [] }}"
+          }
+        }
+      },
+      "name": "Airtable (failed)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 1,
+      "position": [
+        850,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "command": "mv \"{{$binary.data.filePath}}\" \"/data/processed/\""
+      },
+      "name": "Move to processed",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "command": "mv \"{{$binary.data.filePath}}\" \"/data/failed/\""
+      },
+      "name": "Move to failed",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        420
       ]
     }
   ],
@@ -80,7 +172,47 @@
       "main": [
         [
           {
-            "node": "Airtable",
+            "node": "Quality Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Router": {
+      "main": [
+        [
+          {
+            "node": "Airtable (passed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Airtable (failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable (passed)": {
+      "main": [
+        [
+          {
+            "node": "Move to processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Airtable (failed)": {
+      "main": [
+        [
+          {
+            "node": "Move to failed",
             "type": "main",
             "index": 0
           }

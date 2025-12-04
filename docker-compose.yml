@@ -4,6 +4,8 @@ services:
   model-service:
     build: ./model-service
     container_name: digitization-qc-model
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     volumes:

@@ -5,6 +5,11 @@ RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
+# Install curl for health checks and debugging
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
