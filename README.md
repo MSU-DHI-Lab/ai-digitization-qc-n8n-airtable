@@ -107,14 +107,14 @@ The easiest way to run the entire system is with Docker Compose. This will start
     Copy the example environment file and fill in your Airtable details.
     ```bash
     cp .env.example .env
-    # Edit .env with your Base ID
-    # Optional: set MODEL_API_TOKEN to lock down the model API
+    # Edit .env with your Base ID and a non-empty MODEL_API_TOKEN
     ```
 
 2.  **Start the services:**
     ```bash
     docker-compose up -d
     ```
+    (The provided n8n workflow uses `Execute Command` to move files; it assumes you are running self-hosted n8n with access to the `/data` volume.)
 
 3.  **Access n8n:**
     Open your browser to `http://localhost:5678`.
@@ -186,11 +186,19 @@ For teams that want to extend or harden this workflow, the repository can be use
 
 ```bash
 cd model-service
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pytest
 ```
 
 Recommended environment defaults: `MODEL_API_TOKEN` set to a non-empty secret, `MAX_UPLOAD_MB=10`, `MAX_PIXELS=35000000`. If you expose n8n publicly, enable basic auth in `.env` (`N8N_BASIC_AUTH_ACTIVE=true`, user/pass set).
+
+### Troubleshooting
+
+- Local File Trigger not firing: on Docker for Mac/Windows, set the node option to polling mode and confirm `/data` is mounted.
+- AI HTTP 401/403: ensure `MODEL_API_TOKEN` is set in `.env` and the n8n HTTP header matches.
+- Files not moving: the workflow uses `Execute Command` to move files; this requires self-hosted n8n with shell access to `/data`. Hosted n8n will not support this—use a native “Move” node against your storage instead.
+- Empty file path in Airtable: confirm the HTTP node still sends binary data and that `/data/incoming` is mounted into the n8n container.
 
 This makes it straightforward to experiment with different models or hosting environments while keeping Airtable and n8n configuration stable.
 

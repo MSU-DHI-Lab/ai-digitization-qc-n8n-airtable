@@ -24,7 +24,9 @@
         "sendBinaryData": true,
         "binaryPropertyName": "data",
         "options": {
-          "responseFormat": "json"
+          "responseFormat": "json",
+          "fullResponse": true,
+          "ignoreResponseCode": true
         },
         "headerParametersUi": {
           "parameter": [
@@ -38,7 +40,6 @@
       "name": "AI Model Service",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "continueOnFail": true,
       "position": [
         450,
         300
@@ -48,9 +49,30 @@
       "parameters": {
         "conditions": {
           "boolean": [],
+          "number": [
+            {
+              "value1": "={{$json[\"statusCode\"]}}",
+              "operation": "equal",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "name": "API OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
           "string": [
             {
-              "value1": "={{$json[\"quality\"]}}",
+              "value1": "={{$json[\"body\"][\"quality\"]}}",
               "operation": "equal",
               "value2": "high"
             }
@@ -61,7 +83,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        650,
+        850,
         300
       ]
     },
@@ -75,18 +97,18 @@
           "value": {
             "Object ID": "={{ $binary.data.fileName.split('.')[0] }}",
             "File name": "={{ $binary.data.fileName }}",
-            "File path or URL": "={{ $json.filePath || $binary.data.filePath }}",
+            "File path or URL": "={{ $binary.data.filePath }}",
             "Status": "QC Passed",
-            "Quality": "={{ $json.quality }}",
-            "Quality score": "={{ $json.score }}",
-            "Defects (text summary)": "={{ Array.isArray($json.reasons) ? $json.reasons.join(', ') : '' }}",
-            "Finger in frame": "={{ $json.defects.finger_in_frame }}",
-            "Skew (degrees)": "={{ $json.defects.skew_degrees }}",
-            "Blur level": "={{ $json.defects.blur }}",
-            "Glare present": "={{ $json.defects.glare }}",
-            "Cutoff edges": "={{ $json.defects.cutoff_edges }}",
-            "AI Analysis Report": "={{ $json.rich_text_report }}",
-            "Tags": "={{ $json.semantic_tags }}"
+            "Quality": "={{ $json.body.quality }}",
+            "Quality score": "={{ $json.body.score }}",
+            "Defects (text summary)": "={{ Array.isArray($json.body.reasons) ? $json.body.reasons.join(', ') : '' }}",
+            "Finger in frame": "={{ $json.body.defects.finger_in_frame }}",
+            "Skew (degrees)": "={{ $json.body.defects.skew_degrees }}",
+            "Blur level": "={{ $json.body.defects.blur }}",
+            "Glare present": "={{ $json.body.defects.glare }}",
+            "Cutoff edges": "={{ $json.body.defects.cutoff_edges }}",
+            "AI Analysis Report": "={{ $json.body.rich_text_report }}",
+            "Tags": "={{ $json.body.semantic_tags }}"
           }
         }
       },
@@ -94,7 +116,7 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 1,
       "position": [
-        850,
+        1050,
         200
       ]
     },
@@ -108,18 +130,18 @@
           "value": {
             "Object ID": "={{ $binary.data.fileName.split('.')[0] }}",
             "File name": "={{ $binary.data.fileName }}",
-            "File path or URL": "={{ $json.filePath || $binary.data.filePath }}",
+            "File path or URL": "={{ $binary.data.filePath }}",
             "Status": "QC Failed – Needs Review",
-            "Quality": "={{ $json.quality || 'low' }}",
-            "Quality score": "={{ $json.score || 0 }}",
-            "Defects (text summary)": "={{ Array.isArray($json.reasons) ? $json.reasons.join(', ') : 'AI call failed' }}",
-            "Finger in frame": "={{ $json.defects && $json.defects.finger_in_frame ? $json.defects.finger_in_frame : false }}",
-            "Skew (degrees)": "={{ $json.defects && $json.defects.skew_degrees ? $json.defects.skew_degrees : 0 }}",
-            "Blur level": "={{ $json.defects && $json.defects.blur ? $json.defects.blur : 'unknown' }}",
-            "Glare present": "={{ $json.defects && $json.defects.glare ? $json.defects.glare : false }}",
-            "Cutoff edges": "={{ $json.defects && $json.defects.cutoff_edges ? $json.defects.cutoff_edges : false }}",
-            "AI Analysis Report": "={{ $json.rich_text_report || 'AI did not return a report. Please review manually.' }}",
-            "Tags": "={{ $json.semantic_tags || [] }}"
+            "Quality": "={{ $json.body?.quality || 'low' }}",
+            "Quality score": "={{ $json.body?.score || 0 }}",
+            "Defects (text summary)": "={{ Array.isArray($json.body?.reasons) ? $json.body.reasons.join(', ') : 'AI call failed (status ' + ($json.statusCode || 'unknown') + ')' }}",
+            "Finger in frame": "={{ $json.body?.defects?.finger_in_frame || false }}",
+            "Skew (degrees)": "={{ $json.body?.defects?.skew_degrees || 0 }}",
+            "Blur level": "={{ $json.body?.defects?.blur || 'unknown' }}",
+            "Glare present": "={{ $json.body?.defects?.glare || false }}",
+            "Cutoff edges": "={{ $json.body?.defects?.cutoff_edges || false }}",
+            "AI Analysis Report": "={{ $json.body?.rich_text_report || 'AI did not return a report. Please review manually.' }}",
+            "Tags": "={{ $json.body?.semantic_tags || [] }}"
           }
         }
       },
@@ -127,7 +149,7 @@
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 1,
       "position": [
-        850,
+        1050,
         420
       ]
     },
@@ -139,7 +161,7 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1050,
+        1250,
         200
       ]
     },
@@ -151,7 +173,7 @@
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [
-        1050,
+        1250,
         420
       ]
     }
@@ -168,11 +190,29 @@
         ]
       ]
     },
-    "AI Model Service": {
+    "API OK?": {
       "main": [
         [
           {
             "node": "Quality Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Airtable (failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model Service": {
+      "main": [
+        [
+          {
+            "node": "API OK?",
             "type": "main",
             "index": 0
           }
