@@ -128,6 +128,7 @@ The easiest way to run the entire system is with Docker Compose. This will start
     - Drop an image into `data/incoming/`.
     - Watch the workflow execute. Successful files are moved to `data/processed/`; failures go to `data/failed/`.
     - The included AI logic is a placeholder resolution check, not a production model. Swap in your own model (see docs/ai-experiments-notes.md) for real QC.
+    - The stack pins n8n to a specific tag to avoid breaking changes (`n8nio/n8n:1.61.4`). Update deliberately when you are ready to upgrade.
 
 ## 6. Step-by-step setup (Manual)
 
@@ -180,6 +181,16 @@ For teams that want to extend or harden this workflow, the repository can be use
 - The container definition is suitable for running the model service on a small VM, NAS, or on-premises server.
 - The data examples demonstrate how the AI output is shaped so it can be written directly into Airtable via n8n.
 - The model API supports an optional `MODEL_API_TOKEN` shared secret and upload limits (`MAX_UPLOAD_MB`, `MAX_PIXELS`) to keep the service safe in multi-tenant or shared environments.
+
+### Local development and tests
+
+```bash
+cd model-service
+pip install -r requirements.txt
+pytest
+```
+
+Recommended environment defaults: `MODEL_API_TOKEN` set to a non-empty secret, `MAX_UPLOAD_MB=10`, `MAX_PIXELS=35000000`. If you expose n8n publicly, enable basic auth in `.env` (`N8N_BASIC_AUTH_ACTIVE=true`, user/pass set).
 
 This makes it straightforward to experiment with different models or hosting environments while keeping Airtable and n8n configuration stable.
 
