@@ -28,6 +28,7 @@ ALLOW_NO_TOKEN = os.getenv("ALLOW_NO_TOKEN", "false").lower() == "true"
 MAX_UPLOAD_MB = float(os.getenv("MAX_UPLOAD_MB", 10))
 MAX_PIXELS = int(os.getenv("MAX_PIXELS", 35_000_000))  # ~7K x 5K
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
+Image.MAX_IMAGE_PIXELS = MAX_PIXELS  # guard against decompression bombs
 
 # --- Constants ---
 HIGH_QUALITY_PIXEL_THRESHOLD = 2000 * 3000
@@ -79,6 +80,9 @@ def generate_rich_text_report(quality: str, score: int, defects: Defects, reason
         has_issues = True
     if defects.blur != "none":
         report += f"- 🌫️ **Blur**: {defects.blur.capitalize()}\n"
+        has_issues = True
+    if defects.glare:
+        report += "- 💡 **Glare** detected\n"
         has_issues = True
     if defects.cutoff_edges:
         report += "- ✂️ **Cutoff edges** detected\n"
@@ -191,17 +195,27 @@ async def predict(request: Request, file: UploadFile = File(...)):
         try:
             with Image.open(file.file) as verify_img:
                 verify_img.verify()
-        except Exception as e:
+        except (UnidentifiedImageError, Image.DecompressionBombError) as e:
             logger.warning(f"Image verification failed: {e}")
+            raise
+        except Exception as e:
+            logger.warning(f"Image verification error: {e}")
             raise UnidentifiedImageError(f"Verification failed: {e}")
 
         # Reset pointer for processing
         file.file.seek(0)
-        img = Image.open(file.file).convert("RGB")
+        with Image.open(file.file) as opened_img:
+            img = opened_img.convert("RGB")
         
     except UnidentifiedImageError:
         logger.error("Could not identify image file")
         raise HTTPException(status_code=400, detail="Invalid image file")
+    except Image.DecompressionBombError as exc:
+        logger.warning(f"Image exceeds pixel safety limit: {exc}")
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)",
+        )
     except Exception as exc:
         logger.error(f"Error processing image: {exc}")
         return JSONResponse(
