@@ -24,9 +24,15 @@ app = FastAPI(
 
 # --- Configuration ---
 MODEL_API_TOKEN = os.getenv("MODEL_API_TOKEN")
+ALLOW_NO_TOKEN = os.getenv("ALLOW_NO_TOKEN", "false").lower() == "true"
 MAX_UPLOAD_MB = float(os.getenv("MAX_UPLOAD_MB", 10))
 MAX_PIXELS = int(os.getenv("MAX_PIXELS", 35_000_000))  # ~7K x 5K
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
+
+if not MODEL_API_TOKEN and not ALLOW_NO_TOKEN:
+    raise RuntimeError(
+        "MODEL_API_TOKEN is required. Set it in your environment or set ALLOW_NO_TOKEN=true for local-only testing."
+    )
 
 # --- Pydantic Models for Data Contract ---
 

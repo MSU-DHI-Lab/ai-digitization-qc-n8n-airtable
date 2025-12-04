@@ -4,18 +4,48 @@
     {
       "parameters": {
         "path": "/data/incoming",
-        "events": [
-          "add"
-        ],
+        "events": ["add"],
         "options": {}
       },
       "name": "Local File Trigger",
       "type": "n8n-nodes-base.localFileTrigger",
       "typeVersion": 1,
-      "position": [
-        250,
-        300
-      ]
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "filePath",
+              "value": "={{ $binary.data.filePath }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Attach File Path",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [
+            {
+              "value1": "={{$json.filePath}}",
+              "operation": "notEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Has File Path?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [600, 300]
     },
     {
       "parameters": {
@@ -37,13 +67,10 @@
           ]
         }
       },
-      "name": "AI Model Service",
+      "name": "AI Model Service (try 1)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
-      "position": [
-        450,
-        300
-      ]
+      "position": [820, 200]
     },
     {
       "parameters": {
@@ -58,13 +85,116 @@
           ]
         }
       },
-      "name": "API OK?",
+      "name": "API OK? (try 1)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [
-        650,
-        300
-      ]
+      "position": [1040, 200]
+    },
+    {
+      "parameters": {
+        "options": { "unit": "seconds" },
+        "interval": 5
+      },
+      "name": "Retry Delay 1",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1040, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://model-service:8000/predict",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "responseFormat": "json",
+          "fullResponse": true,
+          "ignoreResponseCode": true
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "x-api-token",
+              "value": "={{ $env.MODEL_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "name": "AI Model Service (try 2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1260, 420]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "number": [
+            {
+              "value1": "={{$json[\"statusCode\"]}}",
+              "operation": "equal",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "name": "API OK? (try 2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1480, 420]
+    },
+    {
+      "parameters": {
+        "options": { "unit": "seconds" },
+        "interval": 10
+      },
+      "name": "Retry Delay 2",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1480, 640]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://model-service:8000/predict",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "responseFormat": "json",
+          "fullResponse": true,
+          "ignoreResponseCode": true
+        },
+        "headerParametersUi": {
+          "parameter": [
+            {
+              "name": "x-api-token",
+              "value": "={{ $env.MODEL_API_TOKEN }}"
+            }
+          ]
+        }
+      },
+      "name": "AI Model Service (try 3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1700, 640]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "number": [
+            {
+              "value1": "={{$json[\"statusCode\"]}}",
+              "operation": "equal",
+              "value2": 200
+            }
+          ]
+        }
+      },
+      "name": "API OK? (try 3)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1920, 640]
     },
     {
       "parameters": {
@@ -82,10 +212,7 @@
       "name": "Quality Router",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [
-        850,
-        300
-      ]
+      "position": [1920, 200]
     },
     {
       "parameters": {
@@ -115,10 +242,7 @@
       "name": "Airtable (passed)",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 1,
-      "position": [
-        1050,
-        200
-      ]
+      "position": [2140, 100]
     },
     {
       "parameters": {
@@ -148,10 +272,43 @@
       "name": "Airtable (failed)",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 1,
-      "position": [
-        1050,
-        420
-      ]
+      "position": [2140, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [
+            {
+              "value1": "={{$env.USE_SHELL_MOVES || 'true'}}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "name": "Allow shell moves? (passed)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2360, 80]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [
+            {
+              "value1": "={{$env.USE_SHELL_MOVES || 'true'}}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "name": "Allow shell moves? (failed)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2360, 420]
     },
     {
       "parameters": {
@@ -160,10 +317,7 @@
       "name": "Move to processed",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [
-        1250,
-        200
-      ]
+      "position": [2560, 40]
     },
     {
       "parameters": {
@@ -172,10 +326,82 @@
       "name": "Move to failed",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
-      "position": [
-        1250,
-        420
-      ]
+      "position": [2560, 380]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "moveNote",
+              "value": "Skipped move (USE_SHELL_MOVES=false)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Skip move (passed)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [2560, 140]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "moveNote",
+              "value": "Skipped move (USE_SHELL_MOVES=false)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Skip move (failed)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [2560, 480]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.ALERT_WEBHOOK_URL }}",
+        "method": "POST",
+        "authentication": "none",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\"fileName\": $binary.data.fileName, \"filePath\": $binary.data.filePath, \"status\": $json.statusCode || 'unknown', \"message\": 'AI call failed or missing filePath'}",
+        "options": {}
+      },
+      "name": "Notify Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1700, 820],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "statusCode",
+              "value": "500"
+            }
+          ],
+          "json": [
+            {
+              "name": "body",
+              "value": "{ \"quality\": \"low\", \"score\": 0, \"reasons\": [\"File path missing\"], \"defects\": {}, \"semantic_tags\": [], \"rich_text_report\": \"File path missing\" }"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Missing Path Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [820, 540]
     }
   ],
   "connections": {
@@ -183,14 +409,54 @@
       "main": [
         [
           {
-            "node": "AI Model Service",
+            "node": "Attach File Path",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "API OK?": {
+    "Attach File Path": {
+      "main": [
+        [
+          {
+            "node": "Has File Path?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has File Path?": {
+      "main": [
+        [
+          {
+            "node": "AI Model Service (try 1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Missing Path Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model Service (try 1)": {
+      "main": [
+        [
+          {
+            "node": "API OK? (try 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API OK? (try 1)": {
       "main": [
         [
           {
@@ -201,18 +467,87 @@
         ],
         [
           {
-            "node": "Airtable (failed)",
+            "node": "Retry Delay 1",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "AI Model Service": {
+    "Retry Delay 1": {
       "main": [
         [
           {
-            "node": "API OK?",
+            "node": "AI Model Service (try 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model Service (try 2)": {
+      "main": [
+        [
+          {
+            "node": "API OK? (try 2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API OK? (try 2)": {
+      "main": [
+        [
+          {
+            "node": "Quality Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retry Delay 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Delay 2": {
+      "main": [
+        [
+          {
+            "node": "AI Model Service (try 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Model Service (try 3)": {
+      "main": [
+        [
+          {
+            "node": "API OK? (try 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API OK? (try 3)": {
+      "main": [
+        [
+          {
+            "node": "Quality Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Failure",
             "type": "main",
             "index": 0
           }
@@ -241,7 +576,7 @@
       "main": [
         [
           {
-            "node": "Move to processed",
+            "node": "Allow shell moves? (passed)",
             "type": "main",
             "index": 0
           }
@@ -252,7 +587,65 @@
       "main": [
         [
           {
+            "node": "Allow shell moves? (failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allow shell moves? (passed)": {
+      "main": [
+        [
+          {
+            "node": "Move to processed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip move (passed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allow shell moves? (failed)": {
+      "main": [
+        [
+          {
             "node": "Move to failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip move (failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Failure": {
+      "main": [
+        [
+          {
+            "node": "Airtable (failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Missing Path Payload": {
+      "main": [
+        [
+          {
+            "node": "Notify Failure",
             "type": "main",
             "index": 0
           }

@@ -4,6 +4,9 @@ import io
 import sys
 import os
 
+# Allow test runs without a token
+os.environ.setdefault("ALLOW_NO_TOKEN", "true")
+
 # Add parent directory to path to import app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
