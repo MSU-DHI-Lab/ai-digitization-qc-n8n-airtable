@@ -29,6 +29,10 @@ MAX_UPLOAD_MB = float(os.getenv("MAX_UPLOAD_MB", 10))
 MAX_PIXELS = int(os.getenv("MAX_PIXELS", 35_000_000))  # ~7K x 5K
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
 
+# --- Constants ---
+HIGH_QUALITY_PIXEL_THRESHOLD = 2000 * 3000
+SKEW_THRESHOLD_DEGREES = 2.0
+
 if not MODEL_API_TOKEN and not ALLOW_NO_TOKEN:
     raise RuntimeError(
         "MODEL_API_TOKEN is required. Set it in your environment or set ALLOW_NO_TOKEN=true for local-only testing."
@@ -70,8 +74,8 @@ def generate_rich_text_report(quality: str, score: int, defects: Defects, reason
     if defects.finger_in_frame:
         report += "- 👆 **Finger detected** in frame\n"
         has_issues = True
-    if defects.skew_degrees > 2.0:
-        report += f"- 📐 **Skew**: {defects.skew_degrees}° (Threshold: 2.0°)\n"
+    if defects.skew_degrees > SKEW_THRESHOLD_DEGREES:
+        report += f"- 📐 **Skew**: {defects.skew_degrees}° (Threshold: {SKEW_THRESHOLD_DEGREES}°)\n"
         has_issues = True
     if defects.blur != "none":
         report += f"- 🌫️ **Blur**: {defects.blur.capitalize()}\n"
@@ -105,7 +109,7 @@ def dummy_quality_score(img: Image.Image) -> QualityResponse:
     logger.info(f"Processing image: {width}x{height} pixels")
 
     # Default to "high quality" values
-    is_high_quality = (pixels >= 2000 * 3000)
+    is_high_quality = (pixels >= HIGH_QUALITY_PIXEL_THRESHOLD)
     
     if is_high_quality:
         defects = Defects(
@@ -166,17 +170,35 @@ async def predict(request: Request, file: UploadFile = File(...)):
         logger.warning(f"Invalid content type: {file.content_type}")
         raise HTTPException(status_code=400, detail=f"File must be one of: {', '.join(sorted(ALLOWED_MIME_TYPES))}")
 
-    contents = await file.read()
-    size_mb = len(contents) / (1024 * 1024)
-    if size_mb > MAX_UPLOAD_MB:
-        logger.warning(f"Upload too large: {size_mb:.2f} MB")
-        raise HTTPException(status_code=413, detail=f"File exceeds max size of {MAX_UPLOAD_MB} MB")
-
     try:
-        # Verify first to catch truncated or malformed files
-        with Image.open(io.BytesIO(contents)) as verify_img:
-            verify_img.verify()
-        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        # Optimize: Use file.file directly to avoid reading entire content into memory if possible
+        # However, for validation and safety, we still need to be careful.
+        # SpooledTemporaryFile in FastAPI is file-like.
+        
+        # Check file size
+        file.file.seek(0, 2)
+        size_bytes = file.file.tell()
+        file.file.seek(0)
+        
+        size_mb = size_bytes / (1024 * 1024)
+        if size_mb > MAX_UPLOAD_MB:
+            logger.warning(f"Upload too large: {size_mb:.2f} MB")
+            raise HTTPException(status_code=413, detail=f"File exceeds max size of {MAX_UPLOAD_MB} MB")
+
+        # Verify image without fully loading it
+        # We need to reset the file pointer after verification
+        file.file.seek(0)
+        try:
+            with Image.open(file.file) as verify_img:
+                verify_img.verify()
+        except Exception as e:
+            logger.warning(f"Image verification failed: {e}")
+            raise UnidentifiedImageError(f"Verification failed: {e}")
+
+        # Reset pointer for processing
+        file.file.seek(0)
+        img = Image.open(file.file).convert("RGB")
+        
     except UnidentifiedImageError:
         logger.error("Could not identify image file")
         raise HTTPException(status_code=400, detail="Invalid image file")

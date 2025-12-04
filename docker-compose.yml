@@ -36,7 +36,8 @@ services:
       - ./data:/data
     restart: unless-stopped
     depends_on:
-      - model-service
+      model-service:
+        condition: service_healthy
 
 volumes:
   n8n_data:
