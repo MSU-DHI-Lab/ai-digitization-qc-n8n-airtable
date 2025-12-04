@@ -77,6 +77,15 @@ def dummy_quality_score(img: Image.Image) -> QualityResponse:
     """
     Placeholder logic.
     In a real deployment, replace this with a trained model.
+    
+    Example integration:
+    1. Load your ONNX model:
+       session = onnxruntime.InferenceSession("model.onnx")
+    2. Preprocess the image (resize, normalize).
+    3. Run inference:
+       inputs = {session.get_inputs()[0].name: preprocessed_img}
+       outputs = session.run(None, inputs)
+    4. Map outputs to QualityResponse.
     """
     width, height = img.size
     pixels = width * height

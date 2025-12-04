@@ -95,7 +95,35 @@ The repository includes written guidance for building an interface of this type,
 - docs/:
   - ai-experiments-notes.md: notes on model variants, ONNX, and possible cloud-hosted deployments.
 
-## 5. Step-by-step setup (museum and library friendly)
+## 5. Quick Start (Docker Compose)
+
+The easiest way to run the entire system is with Docker Compose. This will start both the AI model service and n8n in a connected network.
+
+1.  **Configure Environment:**
+    Copy the example environment file and fill in your Airtable details.
+    ```bash
+    cp .env.example .env
+    # Edit .env with your Base ID
+    ```
+
+2.  **Start the services:**
+    ```bash
+    docker-compose up -d
+    ```
+
+3.  **Access n8n:**
+    Open your browser to `http://localhost:5678`.
+
+4.  **Configure the Workflow:**
+    - Import `n8n/workflow-digitization-qc.json`.
+    - The workflow is pre-configured to use the Docker service name and your `.env` variables.
+    - You will still need to authenticate the Airtable node with your API Key (n8n Credential).
+
+5.  **Test:**
+    - Drop an image into `data/incoming/`.
+    - Watch the workflow execute.
+
+## 6. Step-by-step setup (Manual)
 
 This section is written for collections staff, registrars, and project managers who may not consider themselves technical specialists. You do not need to write code to understand the workflow, but you may want a colleague or IT partner to help with the server and container pieces.
 
@@ -135,7 +163,7 @@ Once everything is connected:
    - A short text explanation
 4. Use Airtable views and Interfaces to monitor new scans and identify items that need manual review or rescanning.
 
-## 6. For developers
+## 7. For developers
 
 For teams that want to extend or harden this workflow, the repository can be used as a starting point.
 
@@ -145,7 +173,7 @@ For teams that want to extend or harden this workflow, the repository can be use
 
 This makes it straightforward to experiment with different models or hosting environments while keeping Airtable and n8n configuration stable.
 
-## 7. What is implemented today
+## 8. What is implemented today
 
 The current version of this project includes:
 
@@ -167,7 +195,7 @@ The current version of this project includes:
 
 These components were used together in the Digital Heritage Innovation Lab to support a real digitization backlog and are now published in this repository in a form that other teams can adapt.
 
-## 8. Future directions
+## 9. Future directions
 
 While this project represents a working version of the workflow, there are clear opportunities to extend it using additional AI and Airtable features. The ideas below are future enhancements and may not all be implemented in the current repository.
 

@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  model-service:
+    build: ./model-service
+    container_name: digitization-qc-model
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./model-service:/app
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: digitization-qc-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+    env_file:
+      - .env
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./data:/data
+    restart: unless-stopped
+    depends_on:
+      - model-service
+
+volumes:
+  n8n_data:

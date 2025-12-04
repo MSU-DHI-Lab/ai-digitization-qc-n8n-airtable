@@ -20,7 +20,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:8000/predict",
+        "url": "http://model-service:8000/predict",
         "sendBinaryData": true,
         "binaryPropertyName": "data",
         "options": {}
@@ -36,8 +36,8 @@
     {
       "parameters": {
         "operation": "create",
-        "baseId": "appYOURBASEID",
-        "table": "Digitized Objects",
+        "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
+        "table": "={{ $env.AIRTABLE_TABLE_NAME }}",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
