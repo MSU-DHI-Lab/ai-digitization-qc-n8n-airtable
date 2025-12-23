@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from PIL import Image, UnidentifiedImageError
 import io
 import uvicorn

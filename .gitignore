@@ -41,4 +41,8 @@ ENV/
 REVIEW.md
 .env
 data/incoming/*
+data/processed/*
+data/failed/*
 !data/incoming/.gitkeep
+!data/processed/.gitkeep
+!data/failed/.gitkeep

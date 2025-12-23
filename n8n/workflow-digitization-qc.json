@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "path": "/data/incoming",
+        "path": "={{ $env.DATA_INCOMING_PATH || '/data/incoming' }}",
         "events": ["add"],
         "options": {}
       },
@@ -20,6 +20,10 @@
             {
               "name": "filePath",
               "value": "={{ $binary.data.filePath }}"
+            },
+            {
+              "name": "safeFileName",
+              "value": "={{ $binary.data.fileName.replace(/[^a-zA-Z0-9._-]/g, '_') }}"
             }
           ]
         },
@@ -27,39 +31,53 @@
       },
       "name": "Attach File Path",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 2,
+      "typeVersion": 3,
       "position": [400, 300]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "string": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$json.filePath}}",
-              "operation": "notEmpty"
+              "leftValue": "={{ $json.filePath }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "Has File Path?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [600, 300]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "http://model-service:8000/predict",
-        "sendBinaryData": true,
-        "binaryPropertyName": "data",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
         "options": {
-          "responseFormat": "json",
-          "fullResponse": true,
-          "ignoreResponseCode": true
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
         },
-        "headerParametersUi": {
-          "parameter": [
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
               "name": "x-api-token",
               "value": "={{ $env.MODEL_API_TOKEN }}"
@@ -69,50 +87,63 @@
       },
       "name": "AI Model Service (try 1)",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
+      "typeVersion": 4,
       "position": [820, 200]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "number": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$json[\"statusCode\"]}}",
-              "operation": "equal",
-              "value2": 200
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "API OK? (try 1)",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [1040, 200]
     },
     {
       "parameters": {
-        "options": { "unit": "seconds" },
-        "interval": 5
+        "amount": 5,
+        "unit": "seconds"
       },
       "name": "Retry Delay 1",
       "type": "n8n-nodes-base.wait",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [1040, 420]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "http://model-service:8000/predict",
-        "sendBinaryData": true,
-        "binaryPropertyName": "data",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
         "options": {
-          "responseFormat": "json",
-          "fullResponse": true,
-          "ignoreResponseCode": true
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
         },
-        "headerParametersUi": {
-          "parameter": [
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
               "name": "x-api-token",
               "value": "={{ $env.MODEL_API_TOKEN }}"
@@ -122,50 +153,63 @@
       },
       "name": "AI Model Service (try 2)",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
+      "typeVersion": 4,
       "position": [1260, 420]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "number": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$json[\"statusCode\"]}}",
-              "operation": "equal",
-              "value2": 200
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "API OK? (try 2)",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [1480, 420]
     },
     {
       "parameters": {
-        "options": { "unit": "seconds" },
-        "interval": 10
+        "amount": 10,
+        "unit": "seconds"
       },
       "name": "Retry Delay 2",
       "type": "n8n-nodes-base.wait",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [1480, 640]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "http://model-service:8000/predict",
-        "sendBinaryData": true,
-        "binaryPropertyName": "data",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
         "options": {
-          "responseFormat": "json",
-          "fullResponse": true,
-          "ignoreResponseCode": true
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
         },
-        "headerParametersUi": {
-          "parameter": [
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
               "name": "x-api-token",
               "value": "={{ $env.MODEL_API_TOKEN }}"
@@ -175,50 +219,66 @@
       },
       "name": "AI Model Service (try 3)",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
+      "typeVersion": 4,
       "position": [1700, 640]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "number": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$json[\"statusCode\"]}}",
-              "operation": "equal",
-              "value2": 200
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "API OK? (try 3)",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [1920, 640]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "string": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$json[\"body\"][\"quality\"]}}",
-              "operation": "equal",
-              "value2": "high"
+              "leftValue": "={{ $json.body.quality }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "Quality Router",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [1920, 200]
     },
     {
       "parameters": {
         "operation": "create",
         "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
-        "table": "={{ $env.AIRTABLE_TABLE_NAME }}",
+        "tableId": "={{ $env.AIRTABLE_TABLE_NAME }}",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -241,14 +301,14 @@
       },
       "name": "Airtable (passed)",
       "type": "n8n-nodes-base.airtable",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [2140, 100]
     },
     {
       "parameters": {
         "operation": "create",
         "baseId": "={{ $env.AIRTABLE_BASE_ID }}",
-        "table": "={{ $env.AIRTABLE_TABLE_NAME }}",
+        "tableId": "={{ $env.AIRTABLE_TABLE_NAME }}",
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -271,48 +331,64 @@
       },
       "name": "Airtable (failed)",
       "type": "n8n-nodes-base.airtable",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [2140, 400]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "string": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$env.USE_SHELL_MOVES || 'true'}}",
-              "operation": "equal",
-              "value2": "true"
+              "leftValue": "={{ $env.USE_SHELL_MOVES || 'true' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "Allow shell moves? (passed)",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [2360, 80]
     },
     {
       "parameters": {
         "conditions": {
-          "boolean": [],
-          "string": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
             {
-              "value1": "={{$env.USE_SHELL_MOVES || 'true'}}",
-              "operation": "equal",
-              "value2": "true"
+              "leftValue": "={{ $env.USE_SHELL_MOVES || 'true' }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
       "name": "Allow shell moves? (failed)",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [2360, 420]
     },
     {
       "parameters": {
-        "command": "mv \"{{$binary.data.filePath}}\" \"/data/processed/\""
+        "command": "={{ 'mv -- ' + JSON.stringify($binary.data.filePath) + ' ' + JSON.stringify(($env.DATA_PROCESSED_PATH || '/data/processed') + '/') }}"
       },
       "name": "Move to processed",
       "type": "n8n-nodes-base.executeCommand",
@@ -321,7 +397,7 @@
     },
     {
       "parameters": {
-        "command": "mv \"{{$binary.data.filePath}}\" \"/data/failed/\""
+        "command": "={{ 'mv -- ' + JSON.stringify($binary.data.filePath) + ' ' + JSON.stringify(($env.DATA_FAILED_PATH || '/data/failed') + '/') }}"
       },
       "name": "Move to failed",
       "type": "n8n-nodes-base.executeCommand",
@@ -343,7 +419,7 @@
       },
       "name": "Skip move (passed)",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 2,
+      "typeVersion": 3,
       "position": [2560, 140]
     },
     {
@@ -361,38 +437,59 @@
       },
       "name": "Skip move (failed)",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 2,
+      "typeVersion": 3,
       "position": [2560, 480]
     },
     {
       "parameters": {
-        "url": "={{ $env.ALERT_WEBHOOK_URL }}",
         "method": "POST",
-        "authentication": "none",
-        "jsonParameters": true,
-        "bodyParametersJson": "={\"fileName\": $binary.data.fileName, \"filePath\": $binary.data.filePath, \"status\": $json.statusCode || 'unknown', \"message\": 'AI call failed or missing filePath'}",
+        "url": "={{ $env.ALERT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "fileName",
+              "value": "={{ $binary.data.fileName }}"
+            },
+            {
+              "name": "filePath",
+              "value": "={{ $binary.data.filePath }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.statusCode || 'unknown' }}"
+            },
+            {
+              "name": "message",
+              "value": "AI call failed or missing filePath"
+            }
+          ]
+        },
         "options": {}
       },
       "name": "Notify Failure",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
+      "typeVersion": 4,
       "position": [1700, 820],
-      "continueOnFail": true
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "keepOnlySet": false,
-        "values": {
-          "string": [
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
             {
+              "id": "statusCode",
               "name": "statusCode",
-              "value": "500"
-            }
-          ],
-          "json": [
+              "value": 500,
+              "type": "number"
+            },
             {
+              "id": "body",
               "name": "body",
-              "value": "{ \"quality\": \"low\", \"score\": 0, \"reasons\": [\"File path missing\"], \"defects\": {}, \"semantic_tags\": [], \"rich_text_report\": \"File path missing\" }"
+              "value": "={{ { quality: 'low', score: 0, reasons: ['File path missing'], defects: { finger_in_frame: false, skew_degrees: 0, blur: 'unknown', glare: false, cutoff_edges: false }, semantic_tags: [], rich_text_report: 'File path missing' } }}",
+              "type": "object"
             }
           ]
         },
@@ -400,7 +497,7 @@
       },
       "name": "Set Missing Path Payload",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 2,
+      "typeVersion": 3,
       "position": [820, 540]
     }
   ],

@@ -93,10 +93,10 @@ Stores all scan records, AI results, workflow statuses, and metadata; supports r
 
 ## Repository Contents
 
-ai-service  
+model-service  
 Minimal Python-based computer vision service
 
-n8n-workflow.json  
+n8n/workflow-digitization-qc.json  
 Complete n8n workflow definition
 
 base-schema.md  
