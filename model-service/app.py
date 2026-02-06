@@ -1,13 +1,14 @@
 import logging
 import os
+import io
+import time
+from typing import List, Optional
+
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List
 from PIL import Image, UnidentifiedImageError
-import io
 import uvicorn
-import time
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -22,12 +23,41 @@ app = FastAPI(
     version="0.2.0",
 )
 
+# --- Configuration helpers ---
+
+def _get_bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() == "true"
+
+def _get_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        logger.warning("Invalid value for %s (%s); falling back to %s", name, raw, default)
+        return default
+
+def _get_int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        logger.warning("Invalid value for %s (%s); falling back to %s", name, raw, default)
+        return default
+
 # --- Configuration ---
 MODEL_API_TOKEN = os.getenv("MODEL_API_TOKEN")
-ALLOW_NO_TOKEN = os.getenv("ALLOW_NO_TOKEN", "false").lower() == "true"
-MAX_UPLOAD_MB = float(os.getenv("MAX_UPLOAD_MB", 10))
-MAX_PIXELS = int(os.getenv("MAX_PIXELS", 35_000_000))  # ~7K x 5K
+ALLOW_NO_TOKEN = _get_bool_env("ALLOW_NO_TOKEN", False)
+MAX_UPLOAD_MB = _get_float_env("MAX_UPLOAD_MB", 10)
+MAX_PIXELS = _get_int_env("MAX_PIXELS", 35_000_000)  # ~7K x 5K
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
+ALLOWED_PIL_FORMATS = {"JPEG", "PNG", "TIFF"}
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS  # guard against decompression bombs
 
 # --- Constants ---
@@ -38,6 +68,8 @@ if not MODEL_API_TOKEN and not ALLOW_NO_TOKEN:
     raise RuntimeError(
         "MODEL_API_TOKEN is required. Set it in your environment or set ALLOW_NO_TOKEN=true for local-only testing."
     )
+if ALLOW_NO_TOKEN:
+    logger.warning("ALLOW_NO_TOKEN is enabled; API requests are unauthenticated. Disable in production.")
 
 # --- Pydantic Models for Data Contract ---
 
@@ -152,6 +184,92 @@ def dummy_quality_score(img: Image.Image) -> QualityResponse:
         processed_at=time.strftime("%Y-%m-%dT%H:%M:%S")
     )
 
+# --- Validation helpers ---
+
+def _enforce_size_limit(upload_file: UploadFile) -> None:
+    try:
+        upload_file.file.seek(0, 2)
+        size_bytes = upload_file.file.tell()
+        upload_file.file.seek(0)
+    except Exception as exc:
+        logger.warning("Unable to determine upload size: %s", exc)
+        raise HTTPException(status_code=400, detail="Could not read upload size")
+
+    size_mb = size_bytes / (1024 * 1024)
+    if size_mb > MAX_UPLOAD_MB:
+        logger.warning("Upload too large: %.2f MB (limit %.2f MB)", size_mb, MAX_UPLOAD_MB)
+        raise HTTPException(status_code=413, detail=f"File exceeds max size of {MAX_UPLOAD_MB} MB")
+
+
+def _open_image(upload_file: UploadFile) -> Image.Image:
+    """Open and validate the uploaded image; ensures MIME matches detected format."""
+    if upload_file.content_type not in ALLOWED_MIME_TYPES:
+        logger.warning("Invalid content type: %s", upload_file.content_type)
+        raise HTTPException(
+            status_code=400,
+            detail=f"File must be one of: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
+        )
+
+    try:
+        upload_file.file.seek(0)
+        with Image.open(upload_file.file) as opened_img:
+            opened_img.verify()
+    except Image.DecompressionBombError as exc:
+        logger.warning("Image exceeds pixel safety limit during verify: %s", exc)
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)",
+        )
+    except UnidentifiedImageError as exc:
+        logger.warning("Image verification failed: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid image file")
+    except Exception as exc:
+        logger.warning("Image verification error: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid image file")
+
+    try:
+        upload_file.file.seek(0)
+        with Image.open(upload_file.file) as opened_img:
+            detected_format: Optional[str] = opened_img.format
+            detected_mime = Image.MIME.get(detected_format or "")
+            if detected_format not in ALLOWED_PIL_FORMATS or detected_mime not in ALLOWED_MIME_TYPES:
+                logger.warning(
+                    "Unsupported image format detected: %s (mime: %s)", detected_format, detected_mime
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Image format is not supported or does not match allowed types",
+                )
+
+            if detected_mime and upload_file.content_type and detected_mime != upload_file.content_type:
+                logger.warning(
+                    "Content-type mismatch: declared %s, detected %s",
+                    upload_file.content_type,
+                    detected_mime,
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Image content type does not match the actual file format",
+                )
+
+            img = opened_img.convert("RGB")
+    except HTTPException:
+        raise
+    except Image.DecompressionBombError as exc:
+        logger.warning("Image exceeds pixel safety limit during open: %s", exc)
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)",
+        )
+    except UnidentifiedImageError:
+        logger.warning("Could not identify image during open")
+        raise HTTPException(status_code=400, detail="Invalid image file")
+    except Exception as exc:
+        logger.warning("Error opening image: %s", exc)
+        raise HTTPException(status_code=400, detail="Invalid image file")
+
+    return img
+
 # --- API Endpoints ---
 
 @app.get("/health")
@@ -170,65 +288,25 @@ async def predict(request: Request, file: UploadFile = File(...)):
             logger.warning("Unauthorized request")
             raise HTTPException(status_code=401, detail="Unauthorized")
 
-    if file.content_type not in ALLOWED_MIME_TYPES:
-        logger.warning(f"Invalid content type: {file.content_type}")
-        raise HTTPException(status_code=400, detail=f"File must be one of: {', '.join(sorted(ALLOWED_MIME_TYPES))}")
-
     try:
-        # Optimize: Use file.file directly to avoid reading entire content into memory if possible
-        # However, for validation and safety, we still need to be careful.
-        # SpooledTemporaryFile in FastAPI is file-like.
-        
-        # Check file size
-        file.file.seek(0, 2)
-        size_bytes = file.file.tell()
-        file.file.seek(0)
-        
-        size_mb = size_bytes / (1024 * 1024)
-        if size_mb > MAX_UPLOAD_MB:
-            logger.warning(f"Upload too large: {size_mb:.2f} MB")
-            raise HTTPException(status_code=413, detail=f"File exceeds max size of {MAX_UPLOAD_MB} MB")
-
-        # Verify image without fully loading it
-        # We need to reset the file pointer after verification
-        file.file.seek(0)
-        try:
-            with Image.open(file.file) as verify_img:
-                verify_img.verify()
-        except (UnidentifiedImageError, Image.DecompressionBombError) as e:
-            logger.warning(f"Image verification failed: {e}")
-            raise
-        except Exception as e:
-            logger.warning(f"Image verification error: {e}")
-            raise UnidentifiedImageError(f"Verification failed: {e}")
-
-        # Reset pointer for processing
-        file.file.seek(0)
-        with Image.open(file.file) as opened_img:
-            img = opened_img.convert("RGB")
-        
-    except UnidentifiedImageError:
-        logger.error("Could not identify image file")
-        raise HTTPException(status_code=400, detail="Invalid image file")
-    except Image.DecompressionBombError as exc:
-        logger.warning(f"Image exceeds pixel safety limit: {exc}")
-        raise HTTPException(
-            status_code=413,
-            detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)",
-        )
+        _enforce_size_limit(file)
+        img = _open_image(file)
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error(f"Error processing image: {exc}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Internal processing error: {str(exc)}"},
-        )
+        logger.exception("Unexpected error during image handling: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal processing error")
 
     width, height = img.size
     if width * height > MAX_PIXELS:
         logger.warning(f"Image too large: {width}x{height}")
         raise HTTPException(status_code=413, detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)")
 
-    result = dummy_quality_score(img)
+    try:
+        result = dummy_quality_score(img)
+    except Exception as exc:
+        logger.exception("Error generating prediction: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal processing error")
     logger.info(f"Prediction complete. Quality: {result.quality}, Score: {result.score}")
     return result
 

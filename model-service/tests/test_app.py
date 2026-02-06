@@ -164,3 +164,88 @@ def test_authentication_required():
         import app as app_module
         importlib.reload(app_module)
 
+
+def test_content_type_mismatch_rejected():
+    """Reject files where declared content-type and actual format differ."""
+    img_bytes = create_dummy_image(2000, 2000, format='PNG')
+    files = {'file': ('test.png', img_bytes, 'image/jpeg')}
+
+    response = client.post("/predict", files=files)
+    assert response.status_code == 400
+    assert "content type" in response.json()["detail"].lower()
+
+
+def test_rejects_file_over_max_upload_mb():
+    """Reject uploads that exceed MAX_UPLOAD_MB."""
+    original_max_upload = os.environ.get("MAX_UPLOAD_MB")
+
+    try:
+        os.environ["MAX_UPLOAD_MB"] = "0.001"  # ~1KB
+        import importlib
+        import app as app_module
+        importlib.reload(app_module)
+        test_client = TestClient(app_module.app)
+
+        img_bytes = create_dummy_image(2000, 2000, format='PNG')
+        files = {'file': ('big.png', img_bytes, 'image/png')}
+
+        response = test_client.post("/predict", files=files)
+        assert response.status_code == 413
+    finally:
+        if original_max_upload is not None:
+            os.environ["MAX_UPLOAD_MB"] = original_max_upload
+        else:
+            os.environ.pop("MAX_UPLOAD_MB", None)
+        import importlib
+        import app as app_module
+        importlib.reload(app_module)
+        global client
+        client = TestClient(app_module.app)
+
+
+def test_internal_error_sanitized(monkeypatch):
+    """Internal errors should not leak implementation details."""
+    import importlib
+    import app as app_module
+    importlib.reload(app_module)
+    test_client = TestClient(app_module.app)
+
+    def boom(_):
+        raise RuntimeError("simulated failure detail")
+
+    monkeypatch.setattr(app_module, "dummy_quality_score", boom)
+
+    img_bytes = create_dummy_image(2000, 3000)
+    files = {'file': ('test.jpg', img_bytes, 'image/jpeg')}
+
+    response = test_client.post("/predict", files=files)
+    assert response.status_code == 500
+    assert "internal processing error" in response.json()["detail"].lower()
+
+
+def test_rejects_when_pixel_count_exceeds_limit():
+    """Reject images that exceed configured pixel budget."""
+    original_max_pixels = os.environ.get("MAX_PIXELS")
+    try:
+        os.environ["MAX_PIXELS"] = "10000"  # very small limit
+        import importlib
+        import app as app_module
+        importlib.reload(app_module)
+        local_client = TestClient(app_module.app)
+
+        img_bytes = create_dummy_image(200, 200)  # 40k pixels
+        files = {'file': ('test.jpg', img_bytes, 'image/jpeg')}
+
+        response = local_client.post("/predict", files=files)
+        assert response.status_code == 413
+        assert "dimensions exceed" in response.json()["detail"].lower()
+    finally:
+        if original_max_pixels is not None:
+            os.environ["MAX_PIXELS"] = original_max_pixels
+        else:
+            os.environ.pop("MAX_PIXELS", None)
+        import importlib
+        import app as app_module
+        importlib.reload(app_module)
+        global client
+        client = TestClient(app_module.app)

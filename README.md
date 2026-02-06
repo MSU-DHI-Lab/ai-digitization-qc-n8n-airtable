@@ -1,5 +1,14 @@
-# AI-Powered Digitization Quality Control Workflow  
-A practical, lab-developed system that integrates AI, Airtable, and n8n to support large-scale collections digitization.
+Digitization projects generate a lot of image files, and each one needs a quick quality check before it can move into description, metadata work, and long-term preservation. When you are working through a backlog, that review step can become the bottleneck, especially when issues like blur, skew, cropped edges, uneven lighting, or an accidental hand in the frame only show up after the scan is already in the queue.
+
+This repository documents a digitization quality control workflow developed in the Digital Heritage Innovation Lab at Michigan State University. The basic routine is simple.
+
+- Staff place new scans into an “incoming” folder.
+- The system runs an automated first-pass check for common capture problems.
+- The results land in Airtable as an easy-to-read record that includes the image, any detected issues, and suggested next steps.
+
+From there, the Airtable Interfaces guide staff through triage and review so they can approve clean scans, flag items that should be rescanned, and track progress without having to touch the automation tools behind the scenes.
+
+In the background, n8n handles the file watching and the handoffs, and a lightweight computer vision service provides the automated checks. Staff still make the final call. The automation reduces repetitive visual screening and helps keep review work more consistent and easier to manage. We moved the workflow to GitHub so museums, archives, libraries, and other cultural heritage organizations can reuse it as it is or adapt it to their own digitization setups.
 
 ## What You Need Before You Begin
 
@@ -12,18 +21,6 @@ This workflow is designed to be usable by non-technical collections staff once a
 5. Basic IT support to install and run n8n and the AI service if staff are not comfortable doing so.  
 
 After setup is complete, day-to-day staff work exclusively in Airtable.
-
-## Plain Language Summary
-
-This workflow helps museum and archive staff review digitized images more efficiently. When a new scan is placed into a designated incoming folder, the system automatically checks the image for common issues such as blur, skew, cutoff edges, or a hand in the frame. Results are sent directly into Airtable as a simple record showing the image, any detected issues, and suggested next steps. Airtable Interfaces guide staff through triage and review so they can approve good scans or flag scans that need to be redone. The workflow is designed so non-technical users can manage digitization work in a clear, intuitive environment.
-
-## Overview
-
-This project documents a real digitization quality control workflow developed in our research lab at Michigan State University. The system supports staff working through a large backlog of scans across multiple collections, many of which require consistent quality checks before entering long-term metadata and preservation pipelines.
-
-We moved this workflow to GitHub to support transparency, reuse, and adaptation by museums, archives, libraries, and cultural heritage organizations facing similar challenges. The implementation reflects multiple rounds of iteration, user feedback, and refinement based on actual digitization output.
-
-Airtable serves as the human-facing environment for metadata, review tasks, and quality assessment. AI provides automated first-pass evaluation. n8n coordinates file monitoring, AI requests, and Airtable updates. The result is a practical, human-centered workflow that reduces repetitive manual work while preserving curatorial judgment.
 
 ## How the System Works
 
@@ -144,7 +141,7 @@ These Interfaces were refined with real staff and student workers and reduce cog
 1. Clone the repository.  
 2. Configure environment variables including Airtable credentials and the AI URL.  
 3. Run the AI service using docker compose.  
-4. Import n8n-workflow.json into your n8n instance and configure credentials.
+4. Import n8n/workflow-digitization-qc.json into your n8n instance and configure credentials.
 
 ## Quick Start for Non-Technical Teams
 
