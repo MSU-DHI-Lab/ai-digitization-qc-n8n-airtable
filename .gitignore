@@ -39,6 +39,10 @@ ENV/
 
 # Project Specific
 REVIEW.md
+/QUALITY_AUDIT.md
+/SECURITY_CHANGES.md
+/SECURITY_REPORT.md
+/SECURITY_VERIFICATION.md
 .env
 data/incoming/*
 data/processed/*
