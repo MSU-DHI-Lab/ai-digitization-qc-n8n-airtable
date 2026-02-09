@@ -1,30 +1,30 @@
-# AI Experiments – Digitization QC Model
+# AI Experiments - Digitization QC Model
 
-This project is designed as a small laboratory for experimenting with AI-powered image quality checking in a collections context.
+Use this file to track model options for image-quality checks in collections workflows.
 
 ## Model variants to try
 
-- Teachable Machine → TensorFlow / ONNX  
-  Train a simple high/low quality classifier in Teachable Machine. Export as TensorFlow, convert to ONNX, and load it in model-service/app.py.
+- Teachable Machine -> TensorFlow / ONNX  
+  Train a high/low quality classifier in Teachable Machine, export TensorFlow, convert to ONNX, and load in `model-service/app.py`.
 
 - Custom PyTorch / ONNX model  
-  Train on your own dataset (e.g., high/low quality scans with labels for defects). Export to ONNX and run it with onnxruntime for fast CPU inference.
+  Train on your own labeled scans, export to ONNX, and run inference on CPU with `onnxruntime`.
 
 - Cloud-hosted models  
-  Use Vertex AI, Hugging Face, or DigitalOcean Gradient to host a vision model. Adapt model-service/app.py to proxy /predict requests to that endpoint.
+  Use a hosted vision endpoint (for example Vertex AI, Hugging Face, or DigitalOcean Gradient) and adapt `model-service/app.py` to proxy `/predict` requests.
 
 ## Why ONNX is useful here
 
-- Portable: the same model can run locally on a NAS, a small cloud VM, or in a container platform.
-- Efficient: good performance on CPU-only hardware, which is common in museums, libraries, and archives.
+- Portable: one model artifact can run on local hardware, cloud VMs, or containers.
+- Efficient: good CPU performance for institutions without GPU infrastructure.
 
 ## Connecting AI to Airtable
 
-The key design choice in this project is that the AI model always returns structured JSON that fits directly into Airtable fields:
+The model output should stay aligned with Airtable fields:
 
-- Binary judgment: quality
-- Score: score
-- Defect flags: defects object
-- Human-friendly explanations: reasons
+- quality decision (`quality`)
+- numeric score (`score`)
+- defect flags (`defects`)
+- human-readable rationale (`reasons`)
 
-This makes the AI output immediately useful to collections staff, without requiring them to read raw logs or developer-centric dashboards.
+Keeping the output schema stable makes automation and staff review simpler.

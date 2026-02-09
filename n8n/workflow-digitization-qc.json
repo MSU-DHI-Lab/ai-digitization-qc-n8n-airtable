@@ -343,7 +343,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $env.USE_SHELL_MOVES || 'true' }}",
+              "leftValue": "={{ $env.USE_SHELL_MOVES || 'false' }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -369,7 +369,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $env.USE_SHELL_MOVES || 'true' }}",
+              "leftValue": "={{ $env.USE_SHELL_MOVES || 'false' }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",

@@ -10,6 +10,22 @@ From there, the Airtable Interfaces guide staff through triage and review so the
 
 In the background, n8n handles the file watching and the handoffs, and a lightweight computer vision service provides the automated checks. Staff still make the final call. The automation reduces repetitive visual screening and helps keep review work more consistent and easier to manage. We moved the workflow to GitHub so museums, archives, libraries, and other cultural heritage organizations can reuse it as it is or adapt it to their own digitization setups.
 
+## Fast Start (Copy/Paste)
+
+This quick start is designed for users who can run Docker Desktop but do not want to manage Python or Node setup.
+
+```bash
+git clone https://github.com/MSU-DHI-Lab/ai-digitization-qc-n8n-airtable.git && cd ai-digitization-qc-n8n-airtable
+cp .env.example .env
+docker compose up -d
+```
+
+After startup:
+
+- n8n is available at http://localhost:5678  
+- Model service health check is available at http://localhost:8000/health  
+- Before production use, edit `.env` and set `AIRTABLE_PAT`, `AIRTABLE_BASE_ID`, and `MODEL_API_TOKEN`
+
 ## What You Need Before You Begin
 
 This workflow is designed to be usable by non-technical collections staff once a small amount of initial setup is completed by someone comfortable with basic IT tasks. Before starting, you will need:
@@ -106,7 +122,7 @@ ai-experiments-notes.md
 Notes from model testing and ONNX experiments
 
 docker-compose.yml  
-Optional container configuration for local deployment
+Known-good container deployment with version-pinned images
 
 README.md  
 This documentation
@@ -136,12 +152,19 @@ Interfaces provide streamlined, non-technical views tailored for:
 
 These Interfaces were refined with real staff and student workers and reduce cognitive load during high-volume review.
 
+## Known-Good Container Tags
+
+- `MODEL_SERVICE_IMAGE=watrall/ai-digitization-qc-model:v0.1.0`  
+- `N8N_IMAGE=n8nio/n8n:1.61.4`  
+
+These tags are pinned on purpose. Avoid using `latest` in production.
+
 ## Quick Start for Developers
 
-1. Clone the repository.  
-2. Configure environment variables including Airtable credentials and the AI URL.  
-3. Run the AI service using docker compose.  
-4. Import n8n/workflow-digitization-qc.json into your n8n instance and configure credentials.
+1. Clone the repository and copy `.env.example` to `.env`.  
+2. Fill in Airtable credentials and set a strong `MODEL_API_TOKEN` in `.env`.  
+3. Start services with `docker compose up -d`.  
+4. Import `n8n/workflow-digitization-qc.json` into n8n and configure credentials.
 
 ## Quick Start for Non-Technical Teams
 

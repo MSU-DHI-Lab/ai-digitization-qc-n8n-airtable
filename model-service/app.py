@@ -1,11 +1,11 @@
 import logging
 import os
-import io
 import time
+import hmac
+import math
 from typing import List, Optional
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from PIL import Image, UnidentifiedImageError
 import uvicorn
@@ -23,39 +23,74 @@ app = FastAPI(
     version="0.2.0",
 )
 
+
+@app.middleware("http")
+async def set_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cache-Control", "no-store")
+    return response
+
 # --- Configuration helpers ---
 
 def _get_bool_env(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
-    return value.lower() == "true"
+    return value.strip().lower() == "true"
 
-def _get_float_env(name: str, default: float) -> float:
+def _get_float_env(name: str, default: float, min_value: Optional[float] = None) -> float:
     raw = os.getenv(name)
     if raw is None:
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except (TypeError, ValueError):
         logger.warning("Invalid value for %s (%s); falling back to %s", name, raw, default)
         return default
+    if not math.isfinite(value):
+        logger.warning("Non-finite value for %s (%s); falling back to %s", name, raw, default)
+        return default
+    if min_value is not None and value < min_value:
+        logger.warning(
+            "Out-of-range value for %s (%s); requires >= %s. Falling back to %s",
+            name,
+            raw,
+            min_value,
+            default,
+        )
+        return default
+    return value
 
-def _get_int_env(name: str, default: int) -> int:
+def _get_int_env(name: str, default: int, min_value: Optional[int] = None) -> int:
     raw = os.getenv(name)
     if raw is None:
         return default
     try:
-        return int(raw)
+        value = int(raw)
     except (TypeError, ValueError):
         logger.warning("Invalid value for %s (%s); falling back to %s", name, raw, default)
         return default
+    if min_value is not None and value < min_value:
+        logger.warning(
+            "Out-of-range value for %s (%s); requires >= %s. Falling back to %s",
+            name,
+            raw,
+            min_value,
+            default,
+        )
+        return default
+    return value
 
 # --- Configuration ---
+DEFAULT_MAX_UPLOAD_MB = 10.0
+DEFAULT_MAX_PIXELS = 35_000_000
 MODEL_API_TOKEN = os.getenv("MODEL_API_TOKEN")
 ALLOW_NO_TOKEN = _get_bool_env("ALLOW_NO_TOKEN", False)
-MAX_UPLOAD_MB = _get_float_env("MAX_UPLOAD_MB", 10)
-MAX_PIXELS = _get_int_env("MAX_PIXELS", 35_000_000)  # ~7K x 5K
+MAX_UPLOAD_MB = _get_float_env("MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB, min_value=0.001)
+MAX_PIXELS = _get_int_env("MAX_PIXELS", DEFAULT_MAX_PIXELS, min_value=1)  # ~7K x 5K
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/tiff"}
 ALLOWED_PIL_FORMATS = {"JPEG", "PNG", "TIFF"}
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS  # guard against decompression bombs
@@ -128,23 +163,15 @@ def generate_rich_text_report(quality: str, score: int, defects: Defects, reason
 
 def dummy_quality_score(img: Image.Image) -> QualityResponse:
     """
-    Placeholder logic.
-    In a real deployment, replace this with a trained model.
-    
-    Example integration:
-    1. Load your ONNX model:
-       session = onnxruntime.InferenceSession("model.onnx")
-    2. Preprocess the image (resize, normalize).
-    3. Run inference:
-       inputs = {session.get_inputs()[0].name: preprocessed_img}
-       outputs = session.run(None, inputs)
-    4. Map outputs to QualityResponse.
+    Placeholder scorer used for local workflow wiring.
+
+    Replace with real model inference when a trained model is available.
     """
     width, height = img.size
     pixels = width * height
     logger.info(f"Processing image: {width}x{height} pixels")
 
-    # Default to "high quality" values
+    # Placeholder branch for larger images.
     is_high_quality = (pixels >= HIGH_QUALITY_PIXEL_THRESHOLD)
     
     if is_high_quality:
@@ -270,6 +297,26 @@ def _open_image(upload_file: UploadFile) -> Image.Image:
 
     return img
 
+
+def _is_authorized_request(request: Request) -> bool:
+    """Validate shared-secret auth in constant time when token auth is enabled."""
+    if not MODEL_API_TOKEN:
+        return True
+    supplied = request.headers.get("x-api-token")
+    if supplied is None:
+        return False
+    return hmac.compare_digest(supplied.encode("utf-8"), MODEL_API_TOKEN.encode("utf-8"))
+
+
+def _enforce_pixel_limit(img: Image.Image) -> None:
+    width, height = img.size
+    if width * height > MAX_PIXELS:
+        logger.warning("Image too large: %sx%s", width, height)
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)",
+        )
+
 # --- API Endpoints ---
 
 @app.get("/health")
@@ -282,11 +329,9 @@ async def predict(request: Request, file: UploadFile = File(...)):
     logger.info(f"Received prediction request for file: {file.filename}")
 
     # Optional token-based auth (simple shared secret)
-    if MODEL_API_TOKEN:
-        supplied = request.headers.get("x-api-token")
-        if supplied != MODEL_API_TOKEN:
-            logger.warning("Unauthorized request")
-            raise HTTPException(status_code=401, detail="Unauthorized")
+    if not _is_authorized_request(request):
+        logger.warning("Unauthorized request")
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
         _enforce_size_limit(file)
@@ -297,10 +342,7 @@ async def predict(request: Request, file: UploadFile = File(...)):
         logger.exception("Unexpected error during image handling: %s", exc)
         raise HTTPException(status_code=500, detail="Internal processing error")
 
-    width, height = img.size
-    if width * height > MAX_PIXELS:
-        logger.warning(f"Image too large: {width}x{height}")
-        raise HTTPException(status_code=413, detail=f"Image dimensions exceed allowed limit ({MAX_PIXELS} pixels)")
+    _enforce_pixel_limit(img)
 
     try:
         result = dummy_quality_score(img)

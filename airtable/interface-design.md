@@ -1,49 +1,45 @@
 # Airtable Interface Design Guide: Digitization Command Center
 
-This guide describes how to build a modern, "Interface-First" dashboard for this digitization workflow. This transforms the raw data in the **Digitized Objects** table into a powerful tool for collections staff.
+This guide covers practical Airtable interface layouts for the `Digitized Objects` table.
 
-## 1. The "Triage" Interface (Review Queue)
+## 1. Triage Interface (Review Queue)
 
-**Goal:** Allow a curator to rapidly review items flagged by AI.
+Goal: let a curator review flagged items quickly.
 
-- **Layout:** Record Review (Split View)
-- **Filter:** `Status` is "QC Failed – Needs Review"
-- **Key Elements:**
-  - **Left Sidebar:** List of items, showing `File name` and `Quality Score` (color-coded).
-  - **Main Area:**
-    - **Hero Image:** Large preview of the scan (`File path or URL` attachment).
-    - **AI Analysis Panel:**
-      - Display the **AI Analysis Report** (Rich Text field).
-      - This gives the curator a clear, formatted summary (e.g., "✅ High Confidence" or "❌ Issues: Blur detected").
-    - **Action Buttons:**
-      - "Approve" (Updates status to `QC Passed`)
-      - "Reject" (Updates status to `Rescan Required`)
+- Layout: Record Review (Split View)
+- Filter: `Status` is "QC Failed – Needs Review"
+- Core elements:
+  - Left sidebar: `File name`, `Quality Score`, and status indicators.
+  - Main pane:
+    - Large image preview from `File path or URL`.
+    - `AI Analysis Report` rich-text summary.
+    - Action buttons:
+      - Approve -> set status to `QC Passed`
+      - Reject -> set status to `Rescan Required`
 
-## 2. The "Collection Health" Dashboard
+## 2. Collection Health Dashboard
 
-**Goal:** High-level metrics for the department head.
+Goal: show current throughput and quality trends.
 
-- **Layout:** Dashboard
-- **Charts:**
-  - **Number:** Total Scans Processed (Count of all records).
-  - **Pie Chart:** Quality Distribution (`Quality` field: High vs. Low).
-  - **Bar Chart:** Common Defects (Count of `Finger in frame`, `Blur`, etc.).
-  - **List:** Recent "High Quality" scans (filtered by `Quality Score > 90`).
+- Layout: Dashboard
+- Suggested widgets:
+  - Total scans processed
+  - Quality split (`High` vs `Low`)
+  - Defect frequency counts
+  - Recent high-quality scans (`Quality Score > 90`)
 
 ## 3. Metadata Enrichment View
 
-**Goal:** Review and refine auto-generated tags.
+Goal: review and refine AI-generated tags while items are already open.
 
-- **Layout:** Grid or Gallery
-- **Key Fields:**
+- Layout: Grid or Gallery
+- Key fields:
   - `File name`
-  - `Tags` (Multi-select, auto-populated by AI).
-- **Workflow:**
-  - Staff member reviews the AI-suggested tags (e.g., "Sepia", "Handwritten").
-  - Adds or removes tags directly in the interface.
-  - This turns the QC step into a **value-add metadata step**.
-
----
+  - `Tags`
+- Workflow:
+  - Review suggested tags.
+  - Add or remove tags directly.
+  - Save changes as part of the same review pass.
 
 ## Why this matters
-By using Interfaces, you hide the complexity of the underlying database. Staff interact with a clean, purpose-built app that feels professional and focused, powered by the structured data from the AI workflow.
+Interfaces keep staff focused on review decisions instead of table mechanics. The same data model supports triage, reporting, and metadata cleanup.
