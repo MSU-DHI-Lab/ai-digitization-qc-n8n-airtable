@@ -1,4 +1,4 @@
-[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-watrall%2Fai--digitization--qc--model-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/watrall/ai-digitization-qc-model)
+[![Docker Pulls](https://img.shields.io/docker/pulls/watrall/ai-digitization-qc-model?logo=docker&logoColor=white)](https://hub.docker.com/r/watrall/ai-digitization-qc-model)
 
 Digitization projects generate a lot of image files, and each one needs a quick quality check before it can move into description, metadata work, and long-term preservation. When you are working through a backlog, that review step can become the bottleneck, especially when issues like blur, skew, cropped edges, uneven lighting, or an accidental hand in the frame only show up after the scan is already in the queue.
 
